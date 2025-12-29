@@ -1,3 +1,85 @@
+# Virtual Environment
 venv/
+env/
+.venv/
+
+datasets/
+archive/
+archive.zip
 archive (1)/
+Animals/archive/
+FashionMNIST/archive (1)/
+**/raw-img/
+**/fashion-mnist*.csv
+**/t10k-*.ubyte
+**/train-*.ubyte
+
+# Model Files & Checkpoints (Large files - see models/README.md)
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+clip_models/
+models/*/clip_models/
+models/*/best_triplet_model.pth
+models/*/checkpoints/
+**/checkpoints/
+**/outputs/
+kaggle/
+outputs/
+
+# Old model locations (deprecated)
+Animals/clip_models/
+Animals/kaggle/
+Animals/outputs/
+FashionMNIST/best_triplet_model.pth
+
+# Embedding Databases
+*.pkl
+*.index
+*.faiss
+embedding_database.pkl
+faiss_index/
+
+# Python Cache
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# OpenVINO generated files
+openvino/models/
+*.xml
+*.bin
+*.mapping
