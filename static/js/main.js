@@ -147,7 +147,14 @@ async function handleSearch(e) {
         
         if (response.ok) {
             displaySimilarityResults(data);
-            loadSearchHistory(); // Refresh history
+            
+            // Save search to localStorage
+            const queryText = currentInputType === 'text' ? document.getElementById('textQuery').value : null;
+            const queryEntity = data.query_entity || null;
+            const resultsCount = data.results?.length || 0;
+            saveSearchHistory('similarity', currentInputType, queryText, queryEntity, resultsCount);
+            
+            loadSearchHistory(); // Refresh history display
             
             // Automatically load recommendations after similarity search
             await loadAutoRecommendations();
@@ -281,18 +288,70 @@ function createResultCard(result, isRecommendation) {
     return card;
 }
 
-// Load search history
-async function loadSearchHistory() {
+// ==================== Local Storage Search History ====================
+
+// Save search to localStorage
+function saveSearchHistory(searchType, queryType, queryText = null, queryEntity = null, resultsCount = 0) {
     try {
-        const response = await authenticatedFetch('/api/history');
-        const data = await response.json();
+        const search = {
+            id: Date.now(),
+            search_type: searchType,
+            query_type: queryType,
+            query_text: queryText,
+            query_entity: queryEntity,
+            results_count: resultsCount,
+            created_at: new Date().toISOString()
+        };
         
-        if (response.ok && data.history && data.history.length > 0) {
+        // Get existing searches
+        let searches = getRecentSearches();
+        
+        // Add new search at the beginning
+        searches.unshift(search);
+        
+        // Keep only last 3 searches
+        searches = searches.slice(0, 3);
+        
+        // Save to localStorage
+        localStorage.setItem('searchHistory', JSON.stringify(searches));
+        
+        console.log('✓ Search saved to localStorage:', search);
+    } catch (error) {
+        console.error('Failed to save search history:', error);
+    }
+}
+
+// Get recent searches from localStorage
+function getRecentSearches() {
+    try {
+        const stored = localStorage.getItem('searchHistory');
+        return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+        console.error('Failed to load search history:', error);
+        return [];
+    }
+}
+
+// Get last search entity (for auto-recommendations)
+function getLastSearchEntity() {
+    const searches = getRecentSearches();
+    if (searches.length > 0) {
+        return searches[0].query_entity;
+    }
+    return null;
+}
+
+// Load search history from localStorage
+function loadSearchHistory() {
+    try {
+        const searches = getRecentSearches();
+        
+        if (searches.length > 0) {
             document.getElementById('recentSearches').style.display = 'block';
             const historyDiv = document.getElementById('searchHistory');
             historyDiv.innerHTML = '';
             
-            data.history.forEach(search => {
+            searches.forEach(search => {
                 const item = document.createElement('div');
                 item.className = 'history-item';
                 
@@ -303,17 +362,29 @@ async function loadSearchHistory() {
                 item.textContent = `${searchType} | ${queryType} | ${query}`;
                 historyDiv.appendChild(item);
             });
+        } else {
+            document.getElementById('recentSearches').style.display = 'none';
         }
     } catch (error) {
         console.error('Failed to load history:', error);
+        document.getElementById('recentSearches').style.display = 'none';
     }
 }
 
 // Load automatic recommendations based on last search
 async function loadAutoRecommendations() {
     try {
+        // Get last search entity from localStorage
+        const lastEntity = getLastSearchEntity();
+        
+        if (!lastEntity) {
+            console.log('No search history available for auto-recommendations');
+            document.getElementById('recommendationsSection').style.display = 'none';
+            return;
+        }
+        
         const topK = document.getElementById('topK').value;
-        const response = await authenticatedFetch(`/api/auto-recommendations?top_k=${topK}`);
+        const response = await authenticatedFetch(`/api/auto-recommendations?entity=${encodeURIComponent(lastEntity)}&top_k=${topK}`);
         const data = await response.json();
         
         console.log('Auto-recommendations response:', data);

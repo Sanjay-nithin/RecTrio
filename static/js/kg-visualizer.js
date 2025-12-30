@@ -85,17 +85,39 @@ function renderGraph(kgData) {
         connections: Object.keys(entities[name].related_entities || {}).length
     }));
 
-    // Prepare links
+    // Prepare links - FILTER to reduce clutter
+    // Only show relationships above a threshold and limit per node
     const links = [];
+    const minStrength = 0.70; // Only show strong relationships (0.70+)
+    const maxLinksPerNode = 5; // Limit to top 5 connections per node
+    
     Object.entries(entities).forEach(([source, data]) => {
-        Object.entries(data.related_entities || {}).forEach(([target, strength]) => {
-            links.push({
-                source: source,
-                target: target,
-                strength: strength
-            });
+        // Get all relationships for this source
+        const relationships = Object.entries(data.related_entities || {})
+            .map(([target, strength]) => ({ target, strength }))
+            .filter(rel => rel.strength >= minStrength) // Filter by strength
+            .sort((a, b) => b.strength - a.strength) // Sort by strength descending
+            .slice(0, maxLinksPerNode); // Take top N
+        
+        // Add filtered relationships
+        relationships.forEach(rel => {
+            // Avoid duplicate links (A-B and B-A)
+            const existingLink = links.find(l => 
+                (l.source === source && l.target === rel.target) ||
+                (l.source === rel.target && l.target === source)
+            );
+            
+            if (!existingLink) {
+                links.push({
+                    source: source,
+                    target: rel.target,
+                    strength: rel.strength
+                });
+            }
         });
     });
+
+    console.log(`Rendering ${nodes.length} nodes and ${links.length} links (filtered from ${Object.keys(entities).length * 10} potential)`);
 
     // Set up SVG
     const container = document.getElementById('graphSvg');
@@ -124,12 +146,12 @@ function renderGraph(kgData) {
     // Store zoom for reset functionality
     svg.zoom = zoom;
 
-    // Create force simulation
+    // Create force simulation with better spacing
     simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links).id(d => d.id).distance(150))
-        .force('charge', d3.forceManyBody().strength(-800))
+        .force('link', d3.forceLink(links).id(d => d.id).distance(200)) // Increased from 150
+        .force('charge', d3.forceManyBody().strength(-1200)) // Increased repulsion from -800
         .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(50));
+        .force('collision', d3.forceCollide().radius(70)); // Increased from 50;
 
     // Create links
     const link = g.append('g')
@@ -158,25 +180,26 @@ function renderGraph(kgData) {
             .on('end', dragEnded))
         .on('click', (event, d) => showEntityDetails(d.id));
 
-    // Add circles to nodes
+    // Add circles to nodes - reduced size for better visibility
     node.append('circle')
         .attr('class', 'node-circle')
-        .attr('r', d => 15 + d.connections * 3)
+        .attr('r', d => 12 + Math.min(d.connections, 5) * 2) // Reduced size and capped growth
         .attr('fill', d => getNodeColor(d.connections))
         .on('mouseover', function(event, d) {
-            d3.select(this).attr('r', 15 + d.connections * 3 + 5);
+            d3.select(this).attr('r', 12 + Math.min(d.connections, 5) * 2 + 5);
             showTooltip(event, `${d.name}<br/>Connections: ${d.connections}`);
         })
         .on('mouseout', function(event, d) {
-            d3.select(this).attr('r', 15 + d.connections * 3);
+            d3.select(this).attr('r', 12 + Math.min(d.connections, 5) * 2);
             hideTooltip();
         });
 
     // Add labels to nodes
     const labels = node.append('text')
         .attr('class', 'node-label')
-        .attr('dy', d => 20 + d.connections * 3 + 8)
-        .text(d => d.name.charAt(0).toUpperCase() + d.name.slice(1))
+        .attr('dy', d => 12 + Math.min(d.connections, 5) * 2 + 12) // Adjusted position
+        .attr('font-size', '11px') // Slightly smaller text
+        .text(d => d.name.replace('_', ' ')) // Replace underscores with spaces
         .style('display', showLabels ? 'block' : 'none');
 
     // Update positions on simulation tick
@@ -193,10 +216,10 @@ function renderGraph(kgData) {
 
 // Get color based on strength
 function getStrengthColor(strength) {
-    if (strength >= 0.8) return '#dc2626'; // Very strong - red
-    if (strength >= 0.6) return '#f59e0b'; // Strong - orange
-    if (strength >= 0.4) return '#3b82f6'; // Moderate - blue
-    return '#9ca3af'; // Weak - gray
+    if (strength >= 0.9) return '#dc2626'; // Very strong (0.9+) - red
+    if (strength >= 0.75) return '#f59e0b'; // Strong (0.75-0.89) - orange
+    if (strength >= 0.6) return '#3b82f6'; // Moderate (0.6-0.74) - blue
+    return '#9ca3af'; // Weak - gray (won't be shown due to filter)
 }
 
 // Get node color based on connections

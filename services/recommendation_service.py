@@ -49,7 +49,7 @@ class RecommendationService:
         self.image_paths = self.metadata['image_paths']
         
         # Load knowledge graph
-        kg_path = self.vector_db_dir / "animal_knowledge_graph.json"
+        kg_path = self.vector_db_dir / "fashion_knowledge_graph.json"
         with open(kg_path, 'r') as f:
             self.knowledge_graph = json.load(f)
         
@@ -136,7 +136,7 @@ class RecommendationService:
             image_path: Full or relative path to image
             
         Returns:
-            Entity name (lowercase) or None if not found
+            Entity name (matching knowledge graph case) or None if not found
         """
         if not image_path:
             return None
@@ -147,29 +147,36 @@ class RecommendationService:
         # Get all parent directories
         path_parts = list(path_obj.parts)
         
-        # First pass: Check if any directory matches known entities in KG
+        # First pass: Check if any directory matches known entities in KG (case-insensitive)
         for part in reversed(path_parts):  # Check from deepest to shallowest
             part_lower = part.lower()
-            if part_lower in self.knowledge_graph['entities']:
-                return part_lower
+            # Match against knowledge graph entities (case-insensitive)
+            for kg_entity in self.knowledge_graph['entities'].keys():
+                if kg_entity.lower() == part_lower or kg_entity.lower().replace('_', ' ') == part_lower:
+                    return kg_entity  # Return with proper capitalization
         
         # Second pass: Check filename itself for entity names
         filename = path_obj.stem.lower()  # Get filename without extension
-        for entity in self.knowledge_graph['entities'].keys():
-            if entity in filename:
-                return entity
+        for kg_entity in self.knowledge_graph['entities'].keys():
+            if kg_entity.lower() in filename:
+                return kg_entity  # Return with proper capitalization
         
         # Third pass: For generic datasets, return the immediate parent folder
         # This assumes structure like: .../category_name/image.jpg
         if len(path_parts) >= 2:
             # Get parent directory name (the folder containing the image)
-            parent_folder = path_parts[-2].lower()
+            parent_folder = path_parts[-2]
             
             # Skip common non-entity folder names
             skip_folders = {'images', 'data', 'train', 'test', 'val', 'validation', 
                           'raw-img', 'processed', 'uploads', 'datasets', 'static'}
             
-            if parent_folder not in skip_folders:
+            if parent_folder.lower() not in skip_folders:
+                # Try to match with knowledge graph entities (case-insensitive)
+                for kg_entity in self.knowledge_graph['entities'].keys():
+                    if kg_entity.lower() == parent_folder.lower():
+                        return kg_entity  # Return with proper capitalization
+                # If not in KG, return as-is (for compatibility)
                 return parent_folder
         
         return None
@@ -221,17 +228,94 @@ class RecommendationService:
         else:
             query_embedding = self.get_text_embedding(query_input)
             query_entity = None
-            query_lower = query_input.lower()
+            query_lower = query_input.lower().strip()
+            
+            # Level 1: Try EXACT match (case-insensitive, full entity name)
             for entity in self.knowledge_graph['entities'].keys():
-                if entity in query_lower:
+                entity_lower = entity.lower()
+                entity_with_space = entity.replace('_', ' ').lower()
+                
+                # Exact match with or without underscores
+                if query_lower == entity_lower or query_lower == entity_with_space:
                     query_entity = entity
+                    print(f"Level 1 - Exact match: '{query_input}' -> '{entity}'")
                     break
+            
+            # Level 2: Try matching with "a photo of" prefix removed
+            if not query_entity:
+                query_cleaned = query_lower.replace('a photo of', '').replace('an image of', '').strip()
+                for entity in self.knowledge_graph['entities'].keys():
+                    entity_lower = entity.lower()
+                    entity_with_space = entity.replace('_', ' ').lower()
+                    
+                    if query_cleaned == entity_lower or query_cleaned == entity_with_space:
+                        query_entity = entity
+                        print(f"Level 2 - Prefix removed: '{query_input}' -> '{entity}'")
+                        break
+            
+            # Level 3: Try singular/plural variations (exact word match)
+            if not query_entity:
+                query_singular = query_lower.rstrip('s')
+                for entity in self.knowledge_graph['entities'].keys():
+                    entity_lower = entity.lower()
+                    entity_singular = entity_lower.rstrip('s')
+                    entity_with_space = entity.replace('_', ' ').lower()
+                    entity_with_space_singular = entity_with_space.rstrip('s')
+                    
+                    # Check if singular forms match
+                    if (query_lower == entity_lower or 
+                        query_singular == entity_singular or
+                        query_lower == entity_with_space or
+                        query_singular == entity_with_space_singular):
+                        query_entity = entity
+                        print(f"Level 3 - Singular/plural: '{query_input}' -> '{entity}'")
+                        break
+            
+            # Level 4: Try word boundary matching (prevent "shirts" matching "tshirts")
+            if not query_entity:
+                import re
+                query_words = set(re.findall(r'\b\w+\b', query_lower))
+                
+                best_match = None
+                best_score = 0
+                
+                for entity in self.knowledge_graph['entities'].keys():
+                    entity_lower = entity.lower()
+                    entity_with_space = entity.replace('_', ' ').lower()
+                    entity_words = set(re.findall(r'\b\w+\b', entity_with_space))
+                    
+                    # Calculate word overlap
+                    common_words = query_words & entity_words
+                    if common_words:
+                        # Prefer exact word matches over substrings
+                        score = len(common_words) / max(len(query_words), len(entity_words))
+                        if score > best_score:
+                            best_score = score
+                            best_match = entity
+                
+                if best_match and best_score >= 0.5:  # At least 50% word overlap
+                    query_entity = best_match
+                    print(f"Level 4 - Word boundary: '{query_input}' -> '{best_match}' (score: {best_score:.2f})")
+            
+            # Level 5: Fallback to similarity search result
+            if not query_entity:
+                print(f"Level 5 - No entity match for '{query_input}', will use fallback")
         
         if not query_entity:
             # Fall back to direct similarity search
             initial_results = self.search_similar_images(query_embedding, top_k)
-            results['recommendations'] = initial_results
-            return results
+            # Try to detect entity from top result
+            if initial_results:
+                query_entity = self.find_entity_from_path(initial_results[0]['path'])
+                if query_entity and query_entity in self.knowledge_graph['entities']:
+                    results['query_entity'] = query_entity
+                    # Continue with KG recommendations
+                else:
+                    results['recommendations'] = initial_results
+                    return results
+            else:
+                results['recommendations'] = initial_results
+                return results
         
         results['query_entity'] = query_entity
         
@@ -277,6 +361,10 @@ class RecommendationService:
                 if result_entity == query_entity:
                     continue
                 
+                # Skip if not from the target label category (ensure correct category)
+                if result_entity != label:
+                    continue
+                
                 # Add if not seen
                 if result['path'] not in seen_paths:
                     # Calculate weighted similarity
@@ -298,33 +386,53 @@ class RecommendationService:
         all_recommendations.sort(key=lambda x: -x['weighted_similarity'])
         
         # MIX MODERATE AND STRONG: Ensure diversity in results
+        # NEW: 5 very strong (0.9+), 3 strong (0.75-0.89), 2 moderate (0.6-0.74)
         if mix_all_strengths and len(all_recommendations) > top_k:
-            # Separate by strength
-            strong = [r for r in all_recommendations if r['strength_category'] == 'strong']
-            moderate = [r for r in all_recommendations if r['strength_category'] == 'moderate']
-            weak = [r for r in all_recommendations if r['strength_category'] == 'weak']
+            # Separate by strength with more granular categories
+            very_strong = [r for r in all_recommendations if r['relationship_strength'] >= 0.9]
+            strong = [r for r in all_recommendations if 0.75 <= r['relationship_strength'] < 0.9]
+            moderate = [r for r in all_recommendations if 0.6 <= r['relationship_strength'] < 0.75]
+            weak = [r for r in all_recommendations if r['relationship_strength'] < 0.6]
             
-            # Calculate proportional distribution
-            strong_count = max(1, int(top_k * 0.5))  # 50% strong
-            moderate_count = max(1, int(top_k * 0.35))  # 35% moderate
-            weak_count = top_k - strong_count - moderate_count  # 15% weak
+            # Calculate proportional distribution: 5 very strong, 3 strong, 2 moderate
+            very_strong_count = min(5, len(very_strong))
+            strong_count = min(3, len(strong))
+            moderate_count = min(2, len(moderate))
             
-            # Adjust if categories don't have enough
-            if len(strong) < strong_count:
-                extra = strong_count - len(strong)
-                moderate_count += extra
-                strong_count = len(strong)
+            # Fill remaining slots if categories don't have enough
+            total_assigned = very_strong_count + strong_count + moderate_count
+            remaining = top_k - total_assigned
             
-            if len(moderate) < moderate_count:
-                extra = moderate_count - len(moderate)
-                weak_count += extra
-                moderate_count = len(moderate)
+            # Distribute remaining slots
+            if remaining > 0:
+                if len(very_strong) > very_strong_count:
+                    extra = min(remaining, len(very_strong) - very_strong_count)
+                    very_strong_count += extra
+                    remaining -= extra
+                
+                if remaining > 0 and len(strong) > strong_count:
+                    extra = min(remaining, len(strong) - strong_count)
+                    strong_count += extra
+                    remaining -= extra
+                
+                if remaining > 0 and len(moderate) > moderate_count:
+                    extra = min(remaining, len(moderate) - moderate_count)
+                    moderate_count += extra
+                    remaining -= extra
+                
+                if remaining > 0 and len(weak) > 0:
+                    weak_count = min(remaining, len(weak))
+                else:
+                    weak_count = 0
+            else:
+                weak_count = 0
             
             # Mix results
             mixed_results = (
+                very_strong[:very_strong_count] + 
                 strong[:strong_count] + 
-                moderate[:moderate_count] + 
-                weak[:weak_count]
+                moderate[:moderate_count] +
+                (weak[:weak_count] if weak_count > 0 else [])
             )
             
             # Sort mixed results by weighted similarity
@@ -358,12 +466,32 @@ class RecommendationService:
                 query_entity = self.find_entity_from_path(query_input)
             else:
                 query_embedding = self.get_text_embedding(query_input)
-                # Extract entity from text query
-                query_lower = query_input.lower()
+                # Extract entity from text query using improved matching
+                query_entity = None
+                query_lower = query_input.lower().strip()
+                
+                # Try exact match first
                 for entity in self.knowledge_graph['entities'].keys():
-                    if entity in query_lower:
+                    entity_lower = entity.lower()
+                    entity_with_space = entity.replace('_', ' ').lower()
+                    
+                    if query_lower == entity_lower or query_lower == entity_with_space:
                         query_entity = entity
                         break
+                
+                # If not found, try word boundary matching to prevent "shirts" matching "tshirts"
+                if not query_entity:
+                    import re
+                    query_words = set(re.findall(r'\b\w+\b', query_lower))
+                    
+                    for entity in self.knowledge_graph['entities'].keys():
+                        entity_with_space = entity.replace('_', ' ').lower()
+                        entity_words = set(re.findall(r'\b\w+\b', entity_with_space))
+                        
+                        # Check for word overlap
+                        if query_words & entity_words:
+                            query_entity = entity
+                            break
             
             results = self.search_similar_images(query_embedding, top_k)
             print(f"Found {len(results)} results, query_entity: {query_entity}")
@@ -395,17 +523,35 @@ class RecommendationService:
         try:
             print(f"get_auto_recommendations called for entity: {entity_name}")
             
+            # Normalize entity name - try case-insensitive matching
+            normalized_entity = None
+            if entity_name in self.knowledge_graph['entities']:
+                normalized_entity = entity_name
+            else:
+                # Try case-insensitive match
+                entity_lower = entity_name.lower()
+                for kg_entity in self.knowledge_graph['entities'].keys():
+                    if kg_entity.lower() == entity_lower:
+                        normalized_entity = kg_entity
+                        print(f"Normalized '{entity_name}' to '{normalized_entity}'")
+                        break
+            
             results = {
-                'query_entity': entity_name,
+                'query_entity': normalized_entity or entity_name,
                 'related_entities': [],
                 'recommendations': [],
                 'strength_distribution': {'strong': 0, 'moderate': 0, 'weak': 0}
             }
             
             # Check if entity exists in knowledge graph
-            if entity_name not in self.knowledge_graph['entities']:
+            if normalized_entity is None:
                 print(f"Entity '{entity_name}' not found in knowledge graph")
+                available_entities = list(self.knowledge_graph['entities'].keys())
+                print(f"Available entities: {available_entities[:10]}...")
                 return results
+            
+            # Use normalized entity name
+            entity_name = normalized_entity
             
             # Get related entities with strengths
             related_with_strength = self.get_related_entities(entity_name, max_related=10)
@@ -450,6 +596,10 @@ class RecommendationService:
                     if result_entity == entity_name:
                         continue
                     
+                    # Skip if not from target label category (ensure correct category)
+                    if result_entity != label:
+                        continue
+                    
                     # Add if not seen
                     if result['path'] not in seen_paths:
                         # Calculate weighted similarity
@@ -470,30 +620,51 @@ class RecommendationService:
             # Sort by weighted similarity
             all_recommendations.sort(key=lambda x: -x['weighted_similarity'])
             
-            # Mix strengths if requested
+            # Mix strengths: 5 very strong (0.9+), 3 strong (0.75-0.89), 2 moderate (0.6-0.74)
             if mix_all_strengths and len(all_recommendations) > top_k:
-                strong = [r for r in all_recommendations if r['strength_category'] == 'strong']
-                moderate = [r for r in all_recommendations if r['strength_category'] == 'moderate']
-                weak = [r for r in all_recommendations if r['strength_category'] == 'weak']
+                # Separate by more granular strength levels
+                very_strong = [r for r in all_recommendations if r['relationship_strength'] >= 0.9]
+                strong = [r for r in all_recommendations if 0.75 <= r['relationship_strength'] < 0.9]
+                moderate = [r for r in all_recommendations if 0.6 <= r['relationship_strength'] < 0.75]
+                weak = [r for r in all_recommendations if r['relationship_strength'] < 0.6]
                 
-                strong_count = max(1, int(top_k * 0.5))
-                moderate_count = max(1, int(top_k * 0.35))
-                weak_count = top_k - strong_count - moderate_count
+                # Target distribution: 5 very strong, 3 strong, 2 moderate
+                very_strong_count = min(5, len(very_strong))
+                strong_count = min(3, len(strong))
+                moderate_count = min(2, len(moderate))
                 
-                if len(strong) < strong_count:
-                    extra = strong_count - len(strong)
-                    moderate_count += extra
-                    strong_count = len(strong)
+                # Fill remaining slots
+                total_assigned = very_strong_count + strong_count + moderate_count
+                remaining = top_k - total_assigned
                 
-                if len(moderate) < moderate_count:
-                    extra = moderate_count - len(moderate)
-                    weak_count += extra
-                    moderate_count = len(moderate)
+                if remaining > 0:
+                    if len(very_strong) > very_strong_count:
+                        extra = min(remaining, len(very_strong) - very_strong_count)
+                        very_strong_count += extra
+                        remaining -= extra
+                    
+                    if remaining > 0 and len(strong) > strong_count:
+                        extra = min(remaining, len(strong) - strong_count)
+                        strong_count += extra
+                        remaining -= extra
+                    
+                    if remaining > 0 and len(moderate) > moderate_count:
+                        extra = min(remaining, len(moderate) - moderate_count)
+                        moderate_count += extra
+                        remaining -= extra
+                    
+                    if remaining > 0 and len(weak) > 0:
+                        weak_count = min(remaining, len(weak))
+                    else:
+                        weak_count = 0
+                else:
+                    weak_count = 0
                 
                 mixed_results = (
+                    very_strong[:very_strong_count] + 
                     strong[:strong_count] + 
-                    moderate[:moderate_count] + 
-                    weak[:weak_count]
+                    moderate[:moderate_count] +
+                    (weak[:weak_count] if weak_count > 0 else [])
                 )
                 
                 mixed_results.sort(key=lambda x: -x['weighted_similarity'])

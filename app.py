@@ -15,7 +15,8 @@ import traceback
 from pathlib import Path
 from dotenv import load_dotenv
 
-from models import db, User, SearchHistory, init_db, cleanup_old_searches
+from models import db, User, SearchHistory, init_db
+# Note: cleanup_old_searches deprecated - search history now in localStorage
 from services.recommendation_service import RecommendationService
 
 # Load environment variables
@@ -46,7 +47,15 @@ ALLOWED_EXTENSIONS = set(os.getenv('ALLOWED_EXTENSIONS', 'png,jpg,jpeg,gif').spl
 # Initialize extensions
 CORS(app)
 jwt = JWTManager(app)
-init_db(app)
+
+# Initialize database only if explicitly requested
+# Set INIT_DB=true in environment to create tables
+if os.getenv('INIT_DB', 'false').lower() == 'true':
+    init_db(app)
+    print("✓ Database initialization enabled (INIT_DB=true)")
+else:
+    db.init_app(app)
+    print("✓ Database connected (tables not created - set INIT_DB=true to initialize)")
 
 # Initialize recommendation service
 MODEL_DIR = Path(os.getenv('MODEL_DIR', 'V1/models'))
@@ -154,64 +163,65 @@ def get_current_user():
         return jsonify({'error': str(e)}), 500
 
 
-# ==================== Search History Endpoints ====================
+# ==================== Search History Endpoints (DEPRECATED - Now using localStorage) ====================
 
-@app.route('/api/history', methods=['GET'])
-@jwt_required()
-def get_search_history():
-    """Get user's search history (last 3 searches)"""
-    try:
-        user_id = int(get_jwt_identity())  # Convert string back to int
-        user = User.query.get(user_id)
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        recent_searches = user.get_recent_searches(limit=3)
-        
-        return jsonify({
-            'history': [search.to_dict() for search in recent_searches]
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/history', methods=['GET'])
+# @jwt_required()
+# def get_search_history():
+#     """Get user's search history (last 3 searches) - DEPRECATED: Now using browser localStorage"""
+#     try:
+#         user_id = int(get_jwt_identity())  # Convert string back to int
+#         user = User.query.get(user_id)
+#         
+#         if not user:
+#             return jsonify({'error': 'User not found'}), 404
+#         
+#         recent_searches = user.get_recent_searches(limit=3)
+#         
+#         return jsonify({
+#             'history': [search.to_dict() for search in recent_searches]
+#         }), 200
+#         
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
 
-def save_search_history(user_id, search_type, query_type, query_text=None, 
-                       query_image_path=None, query_entity=None, 
-                       results_count=0, search_metadata=None):
-    """Save search to history and cleanup old searches"""
-    try:
-        print(f"Saving search history:")
-        print(f"  - user_id: {user_id}")
-        print(f"  - search_type: {search_type}")
-        print(f"  - query_type: {query_type}")
-        print(f"  - query_entity: {query_entity}")
-        print(f"  - query_text: {query_text}")
-        print(f"  - query_image_path: {query_image_path}")
-        
-        search = SearchHistory(
-            user_id=user_id,
-            search_type=search_type,
-            query_type=query_type,
-            query_text=query_text,
-            query_image_path=query_image_path,
-            query_entity=query_entity,
-            results_count=results_count,
-            search_metadata=search_metadata
-        )
-        
-        db.session.add(search)
-        db.session.commit()
-        
-        print(f"Search history saved successfully with query_entity: {query_entity}")
-        
-        # Keep only last 3 searches
-        cleanup_old_searches(user_id, keep_count=3)
-        
-    except Exception as e:
-        print(f"Error saving search history: {e}")
-        db.session.rollback()
+# DEPRECATED: Search history now stored in browser localStorage
+# def save_search_history(user_id, search_type, query_type, query_text=None, 
+#                        query_image_path=None, query_entity=None, 
+#                        results_count=0, search_metadata=None):
+#     """Save search to history and cleanup old searches - DEPRECATED"""
+#     try:
+#         print(f"Saving search history:")
+#         print(f"  - user_id: {user_id}")
+#         print(f"  - search_type: {search_type}")
+#         print(f"  - query_type: {query_type}")
+#         print(f"  - query_entity: {query_entity}")
+#         print(f"  - query_text: {query_text}")
+#         print(f"  - query_image_path: {query_image_path}")
+#         
+#         search = SearchHistory(
+#             user_id=user_id,
+#             search_type=search_type,
+#             query_type=query_type,
+#             query_text=query_text,
+#             query_image_path=query_image_path,
+#             query_entity=query_entity,
+#             results_count=results_count,
+#             search_metadata=search_metadata
+#         )
+#         
+#         db.session.add(search)
+#         db.session.commit()
+#         
+#         print(f"Search history saved successfully with query_entity: {query_entity}")
+#         
+#         # Keep only last 3 searches
+#         cleanup_old_searches(user_id, keep_count=3)
+#         
+#     except Exception as e:
+#         print(f"Error saving search history: {e}")
+#         db.session.rollback()
 
 
 # ==================== Recommendation Endpoints ====================
@@ -275,15 +285,7 @@ def similarity_search():
             
             print(f"Similarity search completed - query_entity: {query_entity}, results: {len(results)}")
             
-            # Save to history
-            save_search_history(
-                user_id=user_id,
-                search_type='similarity',
-                query_type='image',
-                query_image_path=filepath,
-                query_entity=query_entity,
-                results_count=len(results)
-            )
+            # Note: Search history is now stored in browser localStorage for fast retrieval
             
         elif 'text' in request.form and request.form['text'].strip():
             text_query = request.form['text'].strip()
@@ -303,15 +305,7 @@ def similarity_search():
             
             print(f"Similarity search completed - query_entity: {query_entity}, results: {len(results)}")
             
-            # Save to history
-            save_search_history(
-                user_id=user_id,
-                search_type='similarity',
-                query_type='text',
-                query_text=text_query,
-                query_entity=query_entity,
-                results_count=len(results)
-            )
+            # Note: Search history is now stored in browser localStorage for fast retrieval
         else:
             error_msg = 'No image or text query provided. '
             error_msg += f'Form keys: {list(request.form.keys())}, '
@@ -376,19 +370,7 @@ def get_recommendations():
                 mix_all_strengths=True  # Mix moderate and strong
             )
             
-            # Save to history
-            save_search_history(
-                user_id=user_id,
-                search_type='recommendation',
-                query_type='image',
-                query_image_path=filepath,
-                query_entity=results.get('query_entity'),
-                results_count=len(results.get('recommendations', [])),
-                search_metadata={
-                    'related_entities': results.get('related_entities', []),
-                    'strength_distribution': results.get('strength_distribution', {})
-                }
-            )
+            # Note: Search history is now stored in browser localStorage for fast retrieval
             
         elif 'text' in request.form and request.form['text'].strip():
             text_query = request.form['text'].strip()
@@ -403,19 +385,7 @@ def get_recommendations():
                 mix_all_strengths=True  # Mix moderate and strong
             )
             
-            # Save to history
-            save_search_history(
-                user_id=user_id,
-                search_type='recommendation',
-                query_type='text',
-                query_text=text_query,
-                query_entity=results.get('query_entity'),
-                results_count=len(results.get('recommendations', [])),
-                search_metadata={
-                    'related_entities': results.get('related_entities', []),
-                    'strength_distribution': results.get('strength_distribution', {})
-                }
-            )
+            # Note: Search history is now stored in browser localStorage for fast retrieval
         else:
             error_msg = 'No image or text query provided. '
             error_msg += f'Form keys: {list(request.form.keys())}, '
@@ -436,68 +406,25 @@ def get_recommendations():
 @jwt_required()
 def get_auto_recommendations():
     """
-    Get automatic recommendations based on user's last search
+    Get automatic recommendations based on entity name
     Uses knowledge graph to find related entities from vector DB
     """
     try:
-        user_id = int(get_jwt_identity())
-        user = User.query.get(user_id)
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        # Get user's most recent search
-        recent_searches = user.get_recent_searches(limit=3)
-        
-        if not recent_searches:
-            return jsonify({
-                'message': 'No search history found',
-                'recommendations': [],
-                'query_entity': None,
-                'related_entities': []
-            }), 200
-        
-        last_search = recent_searches[0]
-        
-        print(f"Last search details:")
-        print(f"  - search_type: {last_search.search_type}")
-        print(f"  - query_type: {last_search.query_type}")
-        print(f"  - query_entity: {last_search.query_entity}")
-        print(f"  - query_text: {last_search.query_text}")
-        print(f"  - query_image_path: {last_search.query_image_path}")
-        
-        # Determine entity from last search
-        entity_name = None
-        
-        # Try to get entity from the search record
-        if last_search.query_entity:
-            entity_name = last_search.query_entity
-            print(f"Entity from query_entity field: {entity_name}")
-        elif last_search.query_text:
-            # Extract entity from text query
-            query_lower = last_search.query_text.lower()
-            for entity in rec_service.knowledge_graph['entities'].keys():
-                if entity in query_lower:
-                    entity_name = entity
-                    print(f"Entity extracted from text query: {entity_name}")
-                    break
-        elif last_search.query_image_path:
-            # Extract entity from image path
-            entity_name = rec_service.find_entity_from_path(last_search.query_image_path)
-            print(f"Entity extracted from image path: {entity_name}")
+        # Get entity from query params (from localStorage in frontend)
+        entity_name = request.args.get('entity')
         
         if not entity_name:
             return jsonify({
-                'message': 'Could not determine entity from search history',
+                'message': 'No entity provided',
                 'recommendations': [],
                 'query_entity': None,
                 'related_entities': []
             }), 200
         
+        print(f"Auto-recommendations for entity: {entity_name}")
+        
         # Get top_k from query params
         top_k = int(request.args.get('top_k', 10))
-        
-        print(f"Auto-recommendations for entity: {entity_name}, top_k: {top_k}")
         
         # Get automatic recommendations
         results = rec_service.get_auto_recommendations(
@@ -532,7 +459,7 @@ def get_knowledge_graph():
         import json
         
         # Load knowledge graph from file
-        kg_path = os.path.join('V1', 'vector_db', 'animal_knowledge_graph.json')
+        kg_path = os.path.join('V1', 'vector_db', 'fashion_knowledge_graph.json')
         
         if not os.path.exists(kg_path):
             return jsonify({'error': 'Knowledge graph file not found'}), 404
