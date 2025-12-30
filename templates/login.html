@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - VisionRec</title>
+    <link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>VisionRec</h1>
+                <p>AI-Powered Image Recommendations</p>
+            </div>
+            
+            <form id="loginForm" class="auth-form">
+                <h2>Login</h2>
+                
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required 
+                           placeholder="Enter your username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required 
+                           placeholder="Enter your password">
+                </div>
+                
+                <div id="errorMessage" class="error-message"></div>
+                
+                <button type="submit" class="btn-primary">
+                    <span class="btn-text">Login</span>
+                    <span class="btn-loader"></span>
+                </button>
+                
+                <div class="auth-footer">
+                    <p>Don't have an account? <a href="/signup">Sign Up</a></p>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="/static/js/auth.js"></script>
+    <script>
+        // Redirect to main app if already logged in
+        if (localStorage.getItem('access_token')) {
+            window.location.href = '/';
+        }
+        
+        // Handle login form submission
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const btn = e.target.querySelector('button[type="submit"]');
+            const btnText = btn.querySelector('.btn-text');
+            const btnLoader = btn.querySelector('.btn-loader');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Get form data
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                // Show loading state
+                btn.disabled = true;
+                btnText.style.display = 'none';
+                btnLoader.style.display = 'inline-block';
+                errorMessage.textContent = '';
+                
+                // Send login request
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Save token and user info
+                    localStorage.setItem('access_token', data.access_token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    // Redirect to main app
+                    window.location.href = '/';
+                } else {
+                    // Show error message
+                    errorMessage.textContent = data.error || 'Login failed';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Network error. Please try again.';
+                console.error('Login error:', error);
+            } finally {
+                // Reset button state
+                btn.disabled = false;
+                btnText.style.display = 'inline';
+                btnLoader.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

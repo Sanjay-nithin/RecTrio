@@ -1,544 +1,319 @@
-# RecTrio - Multimodal Image Retrieval System
+# VisionRec - AI-Powered Image Recommendation System
 
-**RecTrio** is a comprehensive image retrieval system with two implementations:
-1. **V1**: Custom CNN + LSTM (trained from scratch, Intel CPU optimized)
-   - **Animals Dataset**: 10 animal classes (~8,000 images)
-   - **Fashion MNIST**: 10 fashion categories (70,000 images) ⭐ NEW
-2. **V2**: GitHub CLIP (pre-trained, zero-shot capable)
+VisionRec is an intelligent image recommendation system that combines similarity search with knowledge graph-based recommendations. The system uses OpenVINO-optimized CLIP models for image understanding and FAISS for efficient vector search, providing both visually similar images and semantically related recommendations.
 
-Both versions support **image-to-image** and **text-to-image** search using a shared embedding space.
+## Features
 
----
+- **Dual Search Modes**: Upload images or use text queries to find similar content
+- **Knowledge Graph Integration**: Semantic relationships between entities for intelligent recommendations
+- **Automatic Recommendations**: Get related suggestions based on your search history
+- **Interactive Knowledge Graph Visualizer**: Explore entity relationships visually using D3.js
+- **JWT Authentication**: Secure user authentication with Supabase PostgreSQL
+- **Vector Database**: FAISS-based similarity search with 26,179+ image embeddings
+- **Real-time Results**: Fast inference using OpenVINO CPU optimization
 
-## 🎯 Quick Overview
+## Technology Stack
 
-| Feature | V1 (Custom - Fashion MNIST) | V1 (Custom - Animals) | V2 (CLIP) |
-|---------|-------------|-----------|-----------|
-| **Dataset** | 70,000 fashion items ⭐ | ~8,000 animal images | Any images |
-| **Ready to Use** | After training (~3 hours) | After training (~2 hours) | Immediately ✅ |
-| **Model Size** | 50 MB | 50 MB | 350 MB |
-| **Inference Speed** | 15ms/image ✅ | 15ms/image ✅ | 25ms/image |
-| **Accuracy** | 80-85% | 80-85% | 95%+ ✅ |
-| **Zero-Shot** | ❌ | ❌ | ✅ |
-| **Customizable** | Fully ✅ | Fully ✅ | Limited |
+- **Backend**: Flask 3.0.0, Flask-JWT-Extended, SQLAlchemy
+- **Database**: Supabase PostgreSQL
+- **ML/AI**: OpenVINO 2023+, CLIP ViT-B/32, FAISS IndexFlatIP
+- **Frontend**: Vanilla JavaScript, D3.js for visualization
+- **Models**: Pre-trained CLIP models converted to OpenVINO IR format
 
-**Quick Start**: Jump to [Installation](#installation) → [V2 Quick Start](#v2-quick-start) or [Fashion MNIST Guide](#fashion-mnist-quick-start)
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 RecTrio/
+├── app.py                          # Main Flask application
+├── models.py                       # Database models (User, SearchHistory)
+├── requirements.txt                # Python dependencies
+├── .env                           # Environment variables (not in repo)
 ├── datasets/
-│   ├── animals/
-│   │   ├── raw-img/              # 10 animal classes
-│   │   │   ├── butterfly/
-│   │   │   ├── cat/
-│   │   │   ├── chicken/
-│   │   │   ├── cow/
-│   │   │   ├── dog/
-│   │   │   ├── elephant/
-│   │   │   ├── horse/
-│   │   │   ├── sheep/
-│   │   │   ├── spider/
-│   │   │   └── squirrel/
-│   │   └── text_descriptions.py  # 100 text descriptions
-│   │
-│   └── fashion_mnist/             ⭐ NEW
-│       ├── convert_dataset.py     # CSV to images converter
-│       ├── text_descriptions.py   # 100 fashion descriptions
-│       ├── fashion-mnist_*.csv    # Original CSV data
-│       └── processed/             # Converted images
-│           ├── train/             # 60,000 training images
-│           └── test/              # 10,000 test images
-│
-├── V1/                            # Custom CNN Implementation
-│   ├── training/custom_cnn/
-│   │   └── train_multimodal.ipynb    # Training notebook (Fashion MNIST)
-│   ├── inference/custom_cnn/
-│   │   └── multimodal_inference.ipynb # Inference notebook
-│   ├── models/
-│   │   ├── custom_cnn/            # Animals models (legacy)
-│   │   └── fashion_cnn/           ⭐ Fashion MNIST models
-│   ├── README.md                  # V1 documentation
-│   ├── QUICKSTART.md              # V1 quick start
-│   ├── FASHION_MNIST_README.md    ⭐ Fashion MNIST guide
-│   └── SUMMARY.md                 # V1 technical summary
-│
-├── V2/                            # CLIP Implementation
-│   ├── notebooks/
-│   │   ├── build_embeddings.ipynb   # Build database
-│   │   └── inference.ipynb          # Search interface
-│   ├── models/                      # OpenVINO CLIP models
-│   └── vector_db/                   # FAISS index & embeddings
-│
-├── V1_VS_V2_COMPARISON.md         # Detailed comparison
-├── FASHION_MNIST_MIGRATION.md     ⭐ Migration guide
-├── requirements.txt               # Dependencies
-└── README.md                      # This file
+│   └── animals/
+│       └── raw-img/               # Dataset images organized by category
+├── services/
+│   └── recommendation_service.py   # Core ML inference and recommendation logic
+├── static/
+│   ├── css/                       # Stylesheets
+│   └── js/                        # Frontend JavaScript
+├── templates/                     # HTML templates
+├── uploads/                       # User uploaded images
+└── V1/
+    ├── models/                    # OpenVINO model files (.xml, .bin)
+    ├── notebooks/
+    │   ├── build_embeddings.ipynb # Step 1: Build vector database
+    │   └── inference.ipynb        # Step 2: Test inference
+    └── vector_db/
+        ├── embeddings.npy         # Image embeddings
+        ├── faiss_index.bin        # FAISS index
+        ├── metadata.pkl           # Image paths metadata
+        └── animal_knowledge_graph.json  # Entity relationships
 ```
 
----
-
-## 🚀 Installation
+## Setup Instructions
 
 ### Prerequisites
-- Python 3.8+
-- pip
-- (Optional) Jupyter Notebook
 
-### Install Dependencies
+- Python 3.8 or higher
+- Virtual environment tool (venv)
+- Git
+- Supabase account (for PostgreSQL database)
+
+### Step 1: Clone the Repository
 
 ```bash
-# Clone repository
-cd "e:\Projects\AI Based\RecTrio"
+git clone https://github.com/Sanjay-nithin/RecTrio.git
+cd RecTrio
+```
 
-# Install requirements
+### Step 2: Create and Activate Virtual Environment
+
+**Windows (PowerShell):**
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+**Windows (Command Prompt):**
+```cmd
+python -m venv venv
+venv\Scripts\activate.bat
+```
+
+**Linux/Mac:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### Step 3: Run Notebooks (First Time Setup)
+
+Navigate to the notebooks directory and run them in order:
+
+```bash
+cd V1/notebooks
+```
+
+**Important:** Open and run the notebooks in Jupyter or VS Code in the following order:
+
+1. **build_embeddings.ipynb**
+   - Builds the FAISS vector database from your image dataset
+   - Generates embeddings for all images
+   - Creates metadata files
+   - This may take several minutes depending on dataset size
+
+2. **inference.ipynb**
+   - Tests the inference pipeline
+   - Validates that embeddings are working correctly
+   - Ensures models are loaded properly
+
+Return to project root after completion:
+```bash
+cd ../..
+```
+
+### Step 4: Install Dependencies
+
+```bash
 pip install -r requirements.txt
-
-# Install additional packages for V1
-pip install openvino openvino-dev
-
-# Install CLIP for V2
-pip install git+https://github.com/openai/CLIP.git
 ```
 
----
+### Step 5: Configure Environment Variables
 
-## 🎯 V2 Quick Start (CLIP - Recommended for Beginners)
+Create a `.env` file in the project root with the following variables:
 
-### 1. Build Embeddings Database (~5 minutes)
+```env
+# Flask Configuration
+FLASK_DEBUG=True
+PORT=5000
+
+# JWT Secret Key (generate a secure random string)
+JWT_SECRET_KEY=your-secret-key-here
+
+# Supabase Database URL
+SUPABASE_DB_URL=postgresql://user:password@host:port/database
+```
+
+To generate a secure JWT secret key:
+```python
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### Step 6: Initialize Database
+
+The application will automatically create database tables on first run. Ensure your Supabase database is accessible.
+
+### Step 7: Run the Application
 
 ```bash
-jupyter notebook V2/notebooks/build_embeddings.ipynb
+python app.py
 ```
 
-Run all cells to:
-- ✅ Load pre-trained CLIP model (2-3 seconds!)
-- ✅ Convert to OpenVINO for Intel CPU
-- ✅ Generate embeddings for all images
-- ✅ Build FAISS search index
+The application will start on `http://localhost:5000` by default.
 
-### 2. Run Inference
+## Using the Application
 
-```bash
-jupyter notebook V2/notebooks/inference.ipynb
-```
+### First Time Access
 
-#### Example: Image Search
-```python
-query_image = "datasets/animals/raw-img/cat/1.jpeg"
-query_embedding = get_image_embedding(query_image)
-results = search_similar_images(query_embedding, top_k=10)
-display_results(results)
-```
+1. Navigate to `http://localhost:5000`
+2. You will be redirected to the signup page
+3. Create an account with username, email, and password
+4. Login with your credentials
 
-#### Example: Text Search
-```python
-query_text = "a fluffy cat with green eyes"
-query_embedding = get_text_embedding(query_text)
-results = search_similar_images(query_embedding, top_k=10)
-display_results(results)
-```
+### Similarity Search
 
-**That's it!** 🎉 No training required.
+1. **Upload Image**: Click the upload area or drag and drop an image
+2. **Or Use Text**: Switch to "Text Query" tab and enter a description (e.g., "cat", "butterfly")
+3. **Set Results**: Choose number of results (5, 10, 15, or 20)
+4. **Click Search**: View similar images immediately below
+5. **Automatic Recommendations**: Related recommendations appear below similarity results
 
----
+### Search Flow
 
-## � Fashion MNIST Quick Start (NEW - V1 Custom CNN)
+1. User provides input (image or text)
+2. System shows visually similar images
+3. System automatically displays recommendations based on knowledge graph
+4. Both results visible simultaneously
 
-### Why Fashion MNIST?
-- **70,000 images** (60k train + 10k test) vs 8k animals
-- **10 fashion categories**: T-shirt, Trouser, Pullover, Dress, Coat, Sandal, Shirt, Sneaker, Bag, Ankle boot
-- **Better training data**: More balanced, larger dataset
-- **Real-world use case**: Fashion/e-commerce applications
+### Knowledge Graph Visualizer
 
-### 1. Dataset Already Prepared! ✅
+1. Click "Knowledge Graph" in the navigation menu
+2. Explore interactive visualization of entity relationships
+3. **Hover** over nodes/edges to see details
+4. **Click** nodes to view related entities
+5. **Drag** nodes to reposition
+6. **Zoom/Pan** to navigate the graph
 
-The Fashion MNIST dataset has been converted to image folders:
-```
-datasets/fashion_mnist/processed/
-    train/  (60,000 images, 6,000 per class)
-    test/   (10,000 images, 1,000 per class)
-```
+### Understanding Results
 
-### 2. Train Model (~3 hours)
+- **Search Image Badge**: Green badge marks the original query image (100% match)
+- **Labels**: Category names extracted from image paths
+- **Strength Badges**: Shows relationship strength (strong, moderate, weak)
+- **Relationship Score**: Percentage indicating semantic connection strength
 
-```bash
-jupyter notebook V1/training/custom_cnn/train_multimodal.ipynb
-```
+## Dataset Structure
 
-The notebook is **already configured** for Fashion MNIST:
-- ✅ Grayscale image support
-- ✅ 100 fashion text descriptions
-- ✅ 60,000 training samples
-- ✅ Auto-creates `V1/models/fashion_cnn/`
-
-### 3. Run Inference
-
-```bash
-jupyter notebook V1/inference/custom_cnn/multimodal_inference.ipynb
-```
-
-#### Example: Fashion Image Search
-```python
-query_image = "datasets/fashion_mnist/processed/train/tshirt/00001.png"
-results = search_similar_images(get_image_embedding(query_image))
-# Returns: Similar t-shirts and casual tops
-```
-
-#### Example: Fashion Text Search
-```python
-query_text = "a warm winter coat with long sleeves"
-results = search_similar_images(get_text_embedding(query_text))
-# Returns: Matching coat images
-```
-
-#### More Text Examples:
-- `"comfortable running sneakers"` → Athletic shoes
-- `"an elegant dress for women"` → Dresses
-- `"casual trousers for everyday wear"` → Pants
-- `"open-toed summer sandals"` → Sandals
-
-### 📖 Complete Fashion MNIST Guide
-
-**Full documentation**: [V1/FASHION_MNIST_README.md](V1/FASHION_MNIST_README.md)  
-**Migration details**: [FASHION_MNIST_MIGRATION.md](FASHION_MNIST_MIGRATION.md)
-
----
-
-## 🛠️ V1 Quick Start (Animals - Legacy)
-
-### 1. Train Model (~2-3 hours)
-
-```bash
-jupyter notebook V1/training/custom_cnn/train_multimodal.ipynb
-```
-
-The notebook will:
-- ✅ Build vocabulary from text descriptions
-- ✅ Train custom CNN + LSTM
-- ✅ Convert to OpenVINO
-- ✅ Save trained models
-
-### 2. Run Inference
-
-```bash
-jupyter notebook V1/inference/custom_cnn/multimodal_inference.ipynb
-```
-
-Same interface as V2, but using your custom trained model!
-
----
-
-## 📊 Features Comparison
-
-| Feature | V1 Fashion MNIST ⭐ | V1 Animals | V2 CLIP | Notes |
-|---------|-------|------------|---------|-------|
-| **Dataset** | 70,000 fashion items | 8,000 animals | Any | Fashion has more data |
-| **Setup Time** | 3 hours | 2 hours | 5 minutes | V2 wins for quick start |
-| **Image→Image** | ✅ | ✅ | ✅ | All support |
-| **Text→Image** | ✅ | ✅ | ✅ | All support |
-| **New Classes** | ❌ Retrain | ❌ Retrain | ✅ Zero-shot | V2 better for unknown |
-| **Speed** | ✅ 15ms | ✅ 15ms | 25ms | V1 faster |
-| **Accuracy** | 85% | 80% | ✅ 95% | V2 more accurate |
-| **Model Size** | ✅ 50MB | ✅ 50MB | 350MB | V1 smaller |
-| **Customization** | ✅ Full | ✅ Full | Limited | V1 fully customizable |
-| **Use Case** | Fashion/E-commerce | General objects | Anything | Domain-specific vs general |
-
----
-
-## 🎓 How It Works
-
-### Shared Embedding Space
-
-Both V1 and V2 use the same principle:
+Organize your images in the following structure for automatic label extraction:
 
 ```
-┌─────────────┐
-│  Query Text │ ────────┐
-└─────────────┘         │
-                        ↓
-                  Text Encoder
-                        ↓
-              ┌──────────────────┐
-              │   256/512-dim    │
-┌──────────┐  │   Embedding      │  ┌──────────┐
-│  Image 1 │→ │     Space        │ ←│ "a cat"  │
-│  Image 2 │→ │   (Normalized)   │ ←│ "a dog"  │
-│  Image 3 │→ │                  │  └──────────┘
-└──────────┘  └──────────────────┘
-                        ↓
-                 Cosine Similarity
-                        ↓
-                  Top-K Results
+datasets/
+└── your_dataset/
+    ├── category1/
+    │   ├── image1.jpg
+    │   ├── image2.jpg
+    │   └── ...
+    ├── category2/
+    │   ├── image1.jpg
+    │   └── ...
+    └── ...
 ```
 
-### Architecture
+The system automatically extracts labels from folder names, making it scalable to any dataset.
 
-#### V1: Custom Dual-Encoder
-- **Image**: 4-block CNN → 256-dim
-- **Text**: BiLSTM → 256-dim
-- **Training**: Contrastive loss on 10 classes
+## Knowledge Graph
 
-#### V2: Pre-trained CLIP
-- **Image**: Vision Transformer (ViT-B/32) → 512-dim
-- **Text**: Transformer → 512-dim
-- **Training**: Pre-trained on 400M pairs
+The knowledge graph defines semantic relationships between entities. Edit `V1/vector_db/animal_knowledge_graph.json` to customize:
 
----
-
-## 💡 Use Cases
-
-### 1. E-commerce Product Search
-```python
-# Find similar products
-query = "red leather handbag with gold chain"
-results = search(query)
+```json
+{
+  "entities": {
+    "cat": {
+      "related_entities": {
+        "dog": 0.9,
+        "lion": 0.7,
+        "tiger": 0.8
+      }
+    }
+  }
+}
 ```
 
-### 2. Medical Image Retrieval
-```python
-# Find similar X-rays
-query_image = "patient_xray.jpg"
-results = search(query_image)
-```
+Relationship strengths range from 0.0 (weak) to 1.0 (strong).
 
-### 3. Wildlife Identification
-```python
-# Identify animal species
-query = "large gray mammal with trunk"
-results = search(query)
-```
+## API Endpoints
 
-### 4. Fashion Recommendation
-```python
-# Style matching
-query_image = "outfit.jpg"
-recommendations = search(query_image, top_k=10)
-```
+### Authentication
+- `POST /api/auth/signup` - Create new user account
+- `POST /api/auth/login` - Login and receive JWT token
+- `GET /api/auth/me` - Get current user information
 
----
+### Search
+- `POST /api/similarity-search` - Find similar images (image or text input)
+- `POST /api/recommendations` - Get KG-based recommendations
+- `GET /api/auto-recommendations` - Automatic recommendations from history
 
-## 🎯 Which Version Should I Use?
+### Utility
+- `GET /api/history` - Get user's recent searches
+- `GET /api/knowledge-graph` - Get KG data for visualization
 
-### Choose V1 Fashion MNIST if: ⭐ RECOMMENDED FOR LEARNING
-- ✅ You want to learn **custom model training**
-- ✅ You need **fashion/e-commerce** applications
-- ✅ You have **70,000 training images** available
-- ✅ You need **fastest inference** (15ms vs 25ms)
-- ✅ You want **smallest model** (50 MB)
-- ✅ You can afford **3 hours training time**
-- ✅ You need **full architecture control**
+## Troubleshooting
 
-### Choose V1 Animals if:
-- ✅ You want to work with **animal classification**
-- ✅ You have **smaller dataset** (~8k images)
-- ✅ You need **custom domain adaptation**
-- ✅ Training time: **~2 hours**
+### Database Connection Issues
+- Verify Supabase credentials in `.env`
+- Check database URL format: `postgresql://user:password@host:port/database`
+- Ensure database is accessible from your network
 
-### Choose V2 CLIP if:
-- ✅ You need **immediate results** (no training)
-- ✅ You have **unknown/new classes** (zero-shot)
-- ✅ You want **highest accuracy** (95%+)
-- ✅ You're **prototyping/exploring**
-- ✅ You have **diverse content types**
-- ✅ You don't want to train models
+### Model Loading Errors
+- Ensure notebooks were run successfully
+- Check that model files exist in `V1/models/`
+- Verify OpenVINO installation: `pip show openvino`
 
-**Recommendation**: Start with V2 for quick testing, then train V1 Fashion MNIST for production if you need speed/size optimization.
+### Empty Results
+- Confirm FAISS index exists: `V1/vector_db/faiss_index.bin`
+- Check embeddings file: `V1/vector_db/embeddings.npy`
+- Re-run `build_embeddings.ipynb` if files are missing
 
-**Read detailed comparison**: [V1_VS_V2_COMPARISON.md](V1_VS_V2_COMPARISON.md)
+### JWT Authentication Errors
+- Clear browser localStorage: Open console, run `localStorage.clear()`
+- Generate new JWT secret key
+- Restart Flask application
 
----
+### Performance Issues
+- Reduce number of results (5 instead of 20)
+- Optimize FAISS index (use IVF index for large datasets)
+- Enable CPU optimization flags in OpenVINO
 
-## 📚 Documentation
+## Development
 
-### V1 (Custom CNN)
-- [V1/README.md](V1/README.md) - Architecture & technical details
-- [V1/QUICKSTART.md](V1/QUICKSTART.md) - 3-step quick start
-- [V1/SUMMARY.md](V1/SUMMARY.md) - Key insights & learnings
+### Adding New Entities
 
-### V2 (CLIP)
-- Notebooks have detailed markdown cells
-- Based on OpenAI CLIP architecture
+1. Add images to `datasets/your_dataset/new_entity/`
+2. Update knowledge graph in `animal_knowledge_graph.json`
+3. Re-run `build_embeddings.ipynb` to rebuild index
+4. Restart application
 
-### Comparison
-- [V1_VS_V2_COMPARISON.md](V1_VS_V2_COMPARISON.md) - Side-by-side comparison
+### Customizing Recommendations
 
----
+Edit `services/recommendation_service.py`:
+- Modify relationship strength thresholds
+- Adjust mixing ratios (strong/moderate/weak)
+- Change similarity scoring algorithms
 
-## 🔧 Customization
+## Security Notes
 
-### Add New Classes
+- Never commit `.env` file to version control
+- Use strong JWT secret keys in production
+- Enable HTTPS in production environments
+- Regularly update dependencies for security patches
 
-#### For V1:
-1. Add images to `datasets/animals/raw-img/<new_class>/`
-2. Add descriptions to `text_descriptions.py`
-3. Retrain model (3 hours)
+## Performance Optimization
 
-#### For V2:
-1. Add images to dataset
-2. Run `build_embeddings.ipynb`
-3. Done! (zero-shot, no retraining)
+- For datasets over 100k images, use FAISS IVF index
+- Enable OpenVINO threading: `ie.set_config({"CPU_THREADS_NUM": "4"})`
+- Use image preprocessing caching
+- Implement Redis for search history caching
 
-### Use Your Own Dataset
+## License
 
-```python
-# Update paths in notebooks
-DATASET_PATH = Path("path/to/your/dataset")
+This project is for educational and research purposes.
 
-# Organize as:
-# dataset/
-#   class1/
-#     img1.jpg
-#     img2.jpg
-#   class2/
-#     img1.jpg
-#     ...
-```
+## Support
 
----
+For issues, questions, or contributions, please open an issue on the GitHub repository.
 
-## 🐛 Troubleshooting
+## Acknowledgments
 
-### "Out of memory during training"
-```python
-# Reduce batch size
-BATCH_SIZE = 32  # instead of 64
-```
-
-### "CLIP model loading slow"
-- First download takes time (~350MB)
-- Subsequent loads are cached (~2-3 seconds)
-
-### "OpenVINO conversion failed"
-```bash
-pip install --upgrade openvino openvino-dev
-```
-
-### "FAISS search slow"
-```python
-# For 100K+ images, use approximate search
-index = faiss.IndexIVFFlat(quantizer, dim, 100)
-```
-
----
-
-## 📊 Performance Benchmarks
-
-### Inference Speed (Intel Core i7 CPU)
-
-| Operation | V1 | V2 |
-|-----------|----|----|
-| Load model | 1s | 3s |
-| Encode image | 15ms | 25ms |
-| Encode text | 8ms | 15ms |
-| FAISS search (10K) | 0.5ms | 0.5ms |
-
-### Accuracy (10 Animal Classes)
-
-| Metric | V1 | V2 |
-|--------|----|----|
-| Same-class Top-1 | 75% | 90% |
-| Same-class Top-5 | 95% | 99% |
-| Text→Image Top-5 | 80% | 95% |
-
----
-
-## 🎓 Technical Stack
-
-### Core Technologies
-- **PyTorch**: Deep learning framework
-- **OpenVINO**: Intel CPU optimization
-- **FAISS**: Fast similarity search
-- **CLIP**: Multimodal learning (V2)
-
-### Intel Optimizations
-- **OpenVINO**: Model optimization & inference
-- **Intel DNNL**: Optimized kernels
-- **Intel MKL**: Fast linear algebra (NumPy, FAISS)
-
----
-
-## 📖 Learning Resources
-
-### Papers
-- [CLIP: Learning Transferable Visual Models](https://arxiv.org/abs/2103.00020)
-- [SimCLR: Contrastive Learning](https://arxiv.org/abs/2002.05709)
-- [FAISS: Billion-scale similarity search](https://arxiv.org/abs/1702.08734)
-
-### Tools
-- [OpenVINO Documentation](https://docs.openvino.ai/)
-- [FAISS Wiki](https://github.com/facebookresearch/faiss/wiki)
-- [PyTorch Tutorials](https://pytorch.org/tutorials/)
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! Areas for improvement:
-- [ ] Add more animal classes
-- [ ] Implement image augmentation
-- [ ] Add GPU support
-- [ ] Create web interface
-- [ ] Add multi-language text support
-
----
-
-## 📄 License
-
-- **V1 (Custom CNN)**: Custom implementation, no restrictions
-- **V2 (CLIP)**: MIT License (OpenAI CLIP)
-- **FAISS**: MIT License (Facebook Research)
-- **OpenVINO**: Apache 2.0 (Intel)
-
----
-
-## 🙏 Acknowledgments
-
-- OpenAI for CLIP
-- Facebook Research for FAISS
-- Intel for OpenVINO
-- PyTorch team
-
----
-
-## 📧 Contact
-
-For questions or issues, please create an issue in the repository.
-
----
-
-## 🎉 Quick Start Checklist
-
-### For Beginners (V2 CLIP):
-- [ ] Install dependencies
-- [ ] Run `V2/notebooks/build_embeddings.ipynb`
-- [ ] Run `V2/notebooks/inference.ipynb`
-- [ ] Try image search
-- [ ] Try text search
-- [ ] ✅ You're done in 10 minutes!
-
-### For Fashion/E-commerce (V1 Fashion MNIST): ⭐ NEW
-- [ ] Install dependencies
-- [ ] Dataset already prepared! ✅
-- [ ] Read `V1/FASHION_MNIST_README.md`
-- [ ] Run `V1/training/custom_cnn/train_multimodal.ipynb`
-- [ ] Wait 3 hours for training
-- [ ] Run `V1/inference/custom_cnn/multimodal_inference.ipynb`
-- [ ] Try fashion queries: "casual t-shirt", "running sneakers", etc.
-- [ ] ✅ Production-ready fashion search!
-
-### For Custom Domain (V1 Animals - Legacy):
-- [ ] Install dependencies
-- [ ] Read `V1/QUICKSTART.md`
-- [ ] Run `V1/training/custom_cnn/train_multimodal.ipynb`
-- [ ] Wait 2 hours for training
-- [ ] Run `V1/inference/custom_cnn/multimodal_inference.ipynb`
-- [ ] Compare with V2 results
-- [ ] ✅ Optimize for your use case!
-
----
-
-**Happy Searching! 🔍👗🐱**
+- OpenVINO toolkit for optimized inference
+- CLIP model by OpenAI
+- FAISS by Facebook AI Research
+- Supabase for database infrastructure

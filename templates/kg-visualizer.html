@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Graph Visualizer - VisionRec</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/kg-visualizer.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // Check authentication before page loads
+        if (!localStorage.getItem('access_token')) {
+            window.location.href = '/login';
+        }
+    </script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div style="display: flex; align-items: center; gap: 24px;">
+                    <h1 class="logo">VisionRec</h1>
+                    <nav class="nav-links">
+                        <a href="/" class="nav-link">Search</a>
+                        <a href="/kg-visualizer" class="nav-link active">Knowledge Graph</a>
+                    </nav>
+                </div>
+                <div class="user-info">
+                    <span id="userName"></span>
+                    <button onclick="logout()" class="btn-logout">Logout</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h2>Knowledge Graph Visualizer</h2>
+                <p>Interactive visualization of entity relationships and semantic connections</p>
+            </div>
+            <div class="kg-controls">
+                <button id="resetZoom" class="btn-control">Reset View</button>
+                <button id="toggleLabels" class="btn-control">Toggle Labels</button>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="kg-legend">
+            <div class="legend-title">Relationship Strength</div>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-line" style="background: #dc2626;"></div>
+                    <span>Very Strong (0.8-1.0)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line" style="background: #f59e0b;"></div>
+                    <span>Strong (0.6-0.7)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line" style="background: #3b82f6;"></div>
+                    <span>Moderate (0.4-0.5)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line" style="background: #9ca3af;"></div>
+                    <span>Weak (0.1-0.3)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graph Container -->
+        <div class="graph-container">
+            <svg id="graphSvg"></svg>
+            <div id="tooltip" class="graph-tooltip" style="display: none;"></div>
+        </div>
+
+        <!-- Entity Details Panel -->
+        <div id="entityDetails" class="entity-details" style="display: none;">
+            <div class="details-header">
+                <h3 id="entityName"></h3>
+                <button onclick="closeEntityDetails()" class="btn-close">×</button>
+            </div>
+            <div class="details-content">
+                <h4>Related Entities</h4>
+                <div id="relatedEntities" class="related-list"></div>
+            </div>
+        </div>
+
+        <!-- Stats Panel -->
+        <div class="stats-panel">
+            <div class="stat-card">
+                <div class="stat-value" id="totalEntities">0</div>
+                <div class="stat-label">Total Entities</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalRelationships">0</div>
+                <div class="stat-label">Total Relationships</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgStrength">0.0</div>
+                <div class="stat-label">Avg Strength</div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading-state">
+            <div class="loader"></div>
+            <p>Loading Knowledge Graph...</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-toast" style="display: none;"></div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/kg-visualizer.js"></script>
+</body>
+</html>

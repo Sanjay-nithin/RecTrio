@@ -2,3 +2,6 @@ venv/
 datasets/
 models/
 vector_db/
+.env
+uploads/
+__pycache__/

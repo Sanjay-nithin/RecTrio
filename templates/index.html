@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionRec - AI Image Recommendations</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <script>
+        // Check authentication before page loads
+        if (!localStorage.getItem('access_token')) {
+            window.location.href = '/login';
+        }
+    </script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div style="display: flex; align-items: center; gap: 24px;">
+                    <h1 class="logo">VisionRec</h1>
+                    <nav class="nav-links">
+                        <a href="/" class="nav-link active">Search</a>
+                        <a href="/kg-visualizer" class="nav-link">Knowledge Graph</a>
+                    </nav>
+                </div>
+                <div class="user-info">
+                    <span id="userName"></span>
+                    <button onclick="logout()" class="btn-logout">Logout</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Search Section -->
+        <div class="search-section">
+            <div class="search-card">
+                <div class="mode-title">
+                    <h2>Image Search & Recommendations</h2>
+                    <p>Find similar images and get intelligent recommendations powered by AI</p>
+                </div>
+
+                <!-- Search Form -->
+                <form id="searchForm" class="search-form">
+                    <!-- Tab Toggle: Image or Text -->
+                    <div class="input-type-toggle">
+                        <button type="button" id="imageTabBtn" class="tab-btn active" onclick="switchInputType('image')">
+                            Image Upload
+                        </button>
+                        <button type="button" id="textTabBtn" class="tab-btn" onclick="switchInputType('text')">
+                            Text Query
+                        </button>
+                    </div>
+
+                    <!-- Image Upload Section -->
+                    <div id="imageInput" class="input-section">
+                        <div class="upload-area" id="uploadArea">
+                            <input type="file" id="imageFile" name="image" accept="image/*" hidden>
+                            <div class="upload-placeholder">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                    <polyline points="21 15 16 10 5 21"></polyline>
+                                </svg>
+                                <p>Click to upload or drag and drop</p>
+                                <span>PNG, JPG, JPEG, GIF (max 16MB)</span>
+                            </div>
+                            <div id="imagePreview" class="image-preview" style="display: none;">
+                                <img id="previewImg" src="" alt="Preview">
+                                <button type="button" onclick="clearImage()" class="btn-clear">×</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Text Input Section -->
+                    <div id="textInput" class="input-section" style="display: none;">
+                        <textarea id="textQuery" name="text" rows="3" 
+                                  placeholder="E.g., 'a photo of a cat', 'butterfly', 'dog playing'"></textarea>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="search-options">
+                        <label for="topK">Number of results:</label>
+                        <select id="topK" name="top_k">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="15">15</option>
+                            <option value="20">20</option>
+                        </select>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn-search" id="searchBtn">
+                        <span class="btn-text">Search</span>
+                        <span class="btn-loader" style="display: none;"></span>
+                    </button>
+                </form>
+
+                <!-- Recent Searches -->
+                <div id="recentSearches" class="recent-searches" style="display: none;">
+                    <h3>Recent Searches (Last 3)</h3>
+                    <div id="searchHistory"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Similarity Results Section -->
+        <div id="similaritySection" class="results-section" style="display: none;">
+            <div class="results-header">
+                <h2>Similar Images</h2>
+                <div id="similarityInfo" class="results-info"></div>
+            </div>
+            
+            <div id="similarityGrid" class="results-grid"></div>
+        </div>
+
+        <!-- Recommendations Section -->
+        <div id="recommendationsSection" class="results-section" style="display: none;">
+            <div class="results-header">
+                <h2>Recommendations Based on Your Search</h2>
+                <div id="recommendationsInfo" class="results-info"></div>
+            </div>
+            
+            <div id="recommendationsGrid" class="results-grid"></div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-toast" style="display: none;"></div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
