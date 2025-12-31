@@ -1,6 +1,7 @@
 """
 Recommendation Service for RecTrio
-Handles both similarity search and knowledge graph-based recommendations
+Handles both similarity search and knowledge graph-based     def search_similar_images(self, query_embedding, top_k=10, min_threshold=0.25, 
+                             adaptive=True, adaptive_ratio=0.70):commendations
 UPDATED: Mixes moderate and strong relationship matches
 """
 import numpy as np
@@ -53,6 +54,9 @@ class RecommendationService:
         with open(kg_path, 'r') as f:
             self.knowledge_graph = json.load(f)
         
+        # Cache for domain filtering text embeddings (for performance)
+        self._domain_embeddings_cache = None
+        
         print(f"✓ Loaded {len(self.image_paths)} images in vector database")
         print(f"✓ Loaded {len(self.knowledge_graph['entities'])} entities in knowledge graph")
     
@@ -96,12 +100,106 @@ class RecommendationService:
             print(f"Error in get_image_embedding: {e}")
             raise
     
-    def search_similar_images(self, query_embedding, top_k=10):
-        """Search for similar images using FAISS"""
+    def is_fashion_related(self, query_embedding, margin=1.05):
+        """
+        Check if query embedding is more related to fashion than non-fashion items
+        Uses CLIP text embeddings to compare with fashion vs non-fashion concepts
+        Uses caching for performance (only computes text embeddings once)
+        
+        Args:
+            query_embedding: Image embedding to check (normalized)
+            margin: Fashion score must be this much higher than non-fashion (default 1.05 = 5%)
+        
+        Returns:
+            tuple: (is_fashion: bool, fashion_score: float, non_fashion_score: float)
+        """
+        try:
+            # Initialize cache on first call
+            if self._domain_embeddings_cache is None:
+                print("Building domain embeddings cache (one-time setup)...")
+                
+                # Fashion-related terms
+                fashion_terms = [
+                    "clothing", "shoes", "accessories", "fashion item", "apparel",
+                    "footwear", "garment", "dress", "shirt", "pants", "jacket",
+                    "bag", "watch", "jewelry", "sunglasses", "hat", "belt"
+                ]
+                
+                # Non-fashion terms (tools, machines, nature, etc.)
+                non_fashion_terms = [
+                    "tool", "machine", "vehicle", "building", "equipment", "appliance",
+                    "electronics", "furniture", "nature", "animal", "plant", "food",
+                    "bicycle pump", "windmill", "ladder", "wrench", "screwdriver"
+                ]
+                
+                # Pre-compute all text embeddings
+                fashion_embeddings = []
+                for term in fashion_terms:
+                    text_emb = self.get_text_embedding(f"a photo of {term}")
+                    fashion_embeddings.append(text_emb.flatten())
+                
+                non_fashion_embeddings = []
+                for term in non_fashion_terms:
+                    text_emb = self.get_text_embedding(f"a photo of {term}")
+                    non_fashion_embeddings.append(text_emb.flatten())
+                
+                self._domain_embeddings_cache = {
+                    'fashion': np.array(fashion_embeddings),
+                    'non_fashion': np.array(non_fashion_embeddings)
+                }
+                print(f"✓ Cached {len(fashion_embeddings)} fashion + {len(non_fashion_embeddings)} non-fashion embeddings")
+            
+            # Use cached embeddings for fast comparison
+            query_flat = query_embedding.flatten()
+            
+            # Compute similarities with all fashion terms at once (vectorized)
+            fashion_similarities = np.dot(self._domain_embeddings_cache['fashion'], query_flat)
+            avg_fashion = float(np.mean(fashion_similarities))
+            
+            # Compute similarities with all non-fashion terms at once (vectorized)
+            non_fashion_similarities = np.dot(self._domain_embeddings_cache['non_fashion'], query_flat)
+            avg_non_fashion = float(np.mean(non_fashion_similarities))
+            
+            is_fashion = avg_fashion > (avg_non_fashion * margin)
+            
+            print(f"Fashion domain check: fashion={avg_fashion:.3f}, non-fashion={avg_non_fashion:.3f}, is_fashion={is_fashion}")
+            
+            return is_fashion, avg_fashion, avg_non_fashion
+        except Exception as e:
+            print(f"Warning: Fashion domain check failed: {e}")
+            # If check fails, assume it's fashion to avoid false rejections
+            return True, 0.0, 0.0
+
+    
+    def search_similar_images(self, query_embedding, top_k=10, min_threshold=0.25, 
+                             adaptive=True, adaptive_ratio=0.70, check_domain=True):
+        # Domain check: Filter out non-fashion items
+        if check_domain:
+            is_fashion, fashion_score, non_fashion_score = self.is_fashion_related(query_embedding)
+            if not is_fashion:
+                print(f"⚠ Query rejected: Not fashion-related (fashion={fashion_score:.3f}, non-fashion={non_fashion_score:.3f})")
+                return []  # Return empty results for non-fashion items
+        
         distances, indices = self.index.search(query_embedding, top_k)
+        
+        # Get top similarity for adaptive thresholding
+        top_similarity = float(distances[0][0]) if len(distances[0]) > 0 else 0.0
+        
+        # Calculate effective threshold
+        effective_threshold = min_threshold
+        if adaptive and top_similarity > min_threshold:
+            # Adaptive threshold: results must be within adaptive_ratio of top result
+            adaptive_threshold_val = top_similarity * adaptive_ratio
+            effective_threshold = max(min_threshold, adaptive_threshold_val)
         
         results = []
         for idx, distance in zip(indices[0], distances[0]):
+            similarity = float(distance)
+            
+            # Apply threshold filter
+            if similarity < effective_threshold:
+                continue
+                
             if idx < len(self.image_paths):
                 # Convert absolute path to web-accessible path
                 image_path = self.image_paths[idx]
@@ -120,9 +218,16 @@ class RecommendationService:
                 
                 results.append({
                     'path': web_path,
-                    'similarity': float(distance),
+                    'similarity': similarity,
                     'label': entity if entity else 'unknown'
                 })
+        
+        # Log threshold info
+        if len(results) == 0 and top_similarity > 0:
+            print(f"⚠ No results above threshold (top similarity: {top_similarity:.3f}, threshold: {effective_threshold:.3f})")
+            print(f"   Query appears to be out-of-domain (not fashion-related)")
+        elif len(results) < top_k and top_similarity > 0:
+            print(f"ℹ Filtered {top_k - len(results)} low-similarity results (threshold: {effective_threshold:.3f})")
         
         return results
     
@@ -443,20 +548,24 @@ class RecommendationService:
         
         return results
     
-    def similarity_search(self, query_input, input_type='image', top_k=10):
+    def similarity_search(self, query_input, input_type='image', top_k=10, 
+                         min_threshold=0.25, adaptive_ratio=0.70):
         """
-        Simple similarity search without knowledge graph
+        Simple similarity search without knowledge graph, with dynamic thresholding
         
         Args:
             query_input: Image path or text query
             input_type: 'image' or 'text'
             top_k: Number of results
+            min_threshold: Minimum absolute similarity threshold (default 0.20)
+            adaptive_ratio: Adaptive threshold ratio (default 0.65)
         
         Returns:
             Dictionary with results and query_entity
         """
         try:
             print(f"similarity_search called with input_type={input_type}, top_k={top_k}")
+            print(f"  Threshold config: min={min_threshold}, adaptive_ratio={adaptive_ratio}")
             
             query_entity = None
             
@@ -493,8 +602,13 @@ class RecommendationService:
                             query_entity = entity
                             break
             
-            results = self.search_similar_images(query_embedding, top_k)
-            print(f"Found {len(results)} results, query_entity: {query_entity}")
+            # Call search with threshold parameters and domain checking
+            results = self.search_similar_images(
+                query_embedding, top_k=top_k,
+                min_threshold=min_threshold, adaptive=True, adaptive_ratio=adaptive_ratio,
+                check_domain=True  # Enable fashion domain filtering
+            )
+            print(f"Found {len(results)} results (after threshold filtering), query_entity: {query_entity}")
             
             return {
                 'results': results,

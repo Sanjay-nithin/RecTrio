@@ -188,8 +188,22 @@ function displaySimilarityResults(data) {
     
     const results = data.results || [];
     const queryEntity = data.query_entity || 'unknown';
+    const message = data.message || '';
     
-    let infoText = `Found ${results.length} similar images`;
+    // Check if no results found
+    if (results.length === 0) {
+        let infoText = `<div class="no-results-message">
+            <h3>No similar images found in the database</h3>
+            <p>${message || 'The uploaded image appears to be outside the fashion domain or too dissimilar to existing items.'}</p>
+        </div>`;
+        
+        similarityInfo.innerHTML = infoText;
+        similaritySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return; // Exit early, recommendations will be loaded automatically
+    }
+    
+    // Display results normally
+    let infoText = `<h2>Found ${results.length} similar images</h2>`;
     if (queryEntity && queryEntity !== 'unknown') {
         infoText += ` (Query: ${queryEntity})`;
     }
@@ -248,6 +262,7 @@ function createResultCard(result, isRecommendation) {
     const similarity = result.similarity;
     const strengthCategory = result.strength_category;
     const relationshipStrength = result.relationship_strength;
+    const originalSimilarity = result.original_similarity;  // Image match before weighting
     
     let strengthBadge = '';
     if (isRecommendation && strengthCategory) {
@@ -257,6 +272,32 @@ function createResultCard(result, isRecommendation) {
     // Check if this is the search image (100% match)
     const isSearchImage = similarity >= 0.999;
     
+    // For recommendations, use relationship strength for confidence display
+    // For similarity search, use actual similarity
+    const displaySimilarity = (isRecommendation && relationshipStrength) ? relationshipStrength : similarity;
+    
+    // Calculate confidence percentage and determine quality level
+    const confidencePercent = (displaySimilarity * 100).toFixed(0);
+    let confidenceClass = 'confidence-low';
+    let confidenceLabel = 'Low';
+    
+    if (displaySimilarity >= 0.85) {
+        confidenceClass = 'confidence-excellent';
+        confidenceLabel = 'Excellent';
+    } else if (displaySimilarity >= 0.70) {
+        confidenceClass = 'confidence-high';
+        confidenceLabel = 'High';
+    } else if (displaySimilarity >= 0.50) {
+        confidenceClass = 'confidence-medium';
+        confidenceLabel = 'Medium';
+    } else if (displaySimilarity >= 0.30) {
+        confidenceClass = 'confidence-low';
+        confidenceLabel = 'Low';
+    } else {
+        confidenceClass = 'confidence-very-low';
+        confidenceLabel = 'Very Low';
+    }
+    
     let detailsHTML = '';
     if (isSearchImage) {
         detailsHTML = `
@@ -264,12 +305,14 @@ function createResultCard(result, isRecommendation) {
                 <span>Search Image</span>
             </div>
         `;
+    } else {
+        
     }
     
     if (relationshipStrength && !isSearchImage && isRecommendation) {
         detailsHTML += `
-            <div class="similarity-score">
-                <span>Rel: ${(relationshipStrength * 100).toFixed(0)}%</span>
+            <div class="relationship-info">
+                <span>Relationship: ${(relationshipStrength * 100).toFixed(0)}%</span>
             </div>
         `;
     }
@@ -374,38 +417,45 @@ function loadSearchHistory() {
 // Load automatic recommendations based on last search
 async function loadAutoRecommendations() {
     try {
-        // Get last search entity from localStorage
-        const lastEntity = getLastSearchEntity();
+        // Get last 3 search entities from localStorage
+        const searches = getRecentSearches();
+        const topK = document.getElementById('topK').value;
         
-        if (!lastEntity) {
+        if (searches.length === 0) {
             console.log('No search history available for auto-recommendations');
             document.getElementById('recommendationsSection').style.display = 'none';
             return;
         }
         
-        const topK = document.getElementById('topK').value;
-        const response = await authenticatedFetch(`/api/auto-recommendations?entity=${encodeURIComponent(lastEntity)}&top_k=${topK}`);
-        const data = await response.json();
-        
-        console.log('Auto-recommendations response:', data);
-        console.log('Number of recommendations:', data.recommendations?.length || 0);
-        
-        if (response.ok) {
-            if (data.recommendations && data.recommendations.length > 0) {
-                console.log('Auto-loading recommendations for:', data.query_entity);
-                displayRecommendations(data);
-            } else {
-                // Hide recommendations section if no recommendations
-                document.getElementById('recommendationsSection').style.display = 'none';
-                console.log('No recommendations available. Message:', data.message);
-                console.log('Query entity:', data.query_entity);
-                console.log('Related entities:', data.related_entities);
+        // Try each search entity until we find one with recommendations
+        for (const search of searches) {
+            const entity = search.query_entity;
+            
+            if (!entity) {
+                continue; // Skip if no entity
             }
-        } else {
-            console.error('Failed to load auto recommendations:', data.error);
+            
+            console.log(`Trying recommendations for: ${entity}`);
+            
+            const response = await authenticatedFetch(`/api/auto-recommendations?entity=${encodeURIComponent(entity)}&top_k=${topK}`);
+            const data = await response.json();
+            
+            if (response.ok && data.recommendations && data.recommendations.length > 0) {
+                console.log(`Found ${data.recommendations.length} recommendations for: ${entity}`);
+                displayRecommendations(data);
+                return; // Success! Exit early
+            } else {
+                console.log(`No recommendations for: ${entity}`);
+            }
         }
+        
+        // If we get here, none of the searches had recommendations
+        console.log('No recommendations found for any recent search');
+        document.getElementById('recommendationsSection').style.display = 'none';
+        
     } catch (error) {
         console.error('Error loading auto recommendations:', error);
+        document.getElementById('recommendationsSection').style.display = 'none';
     }
 }
 

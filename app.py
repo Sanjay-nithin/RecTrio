@@ -244,6 +244,17 @@ def similarity_search():
         except (ValueError, TypeError):
             top_k = 10
         
+        # Get threshold parameters (optional, defaults to service settings)
+        try:
+            min_threshold = float(request.form.get('min_threshold', 0.25))
+        except (ValueError, TypeError):
+            min_threshold = 0.25
+        
+        try:
+            adaptive_ratio = float(request.form.get('adaptive_ratio', 0.70))
+        except (ValueError, TypeError):
+            adaptive_ratio = 0.70
+        
         # Check if image or text query
         if 'image' in request.files:
             file = request.files['image']
@@ -263,10 +274,23 @@ def similarity_search():
             
             print(f"Processing image: {filepath}")
             
-            # Perform similarity search
-            search_result = rec_service.similarity_search(filepath, input_type='image', top_k=top_k)
+            # Perform similarity search with threshold
+            search_result = rec_service.similarity_search(
+                filepath, input_type='image', top_k=top_k,
+                min_threshold=min_threshold, adaptive_ratio=adaptive_ratio
+            )
             results = search_result['results']
             query_entity = search_result.get('query_entity')
+            
+            # If no results due to threshold, return informative message
+            if not results:
+                return jsonify({
+                    'results': [],
+                    'query_entity': None,
+                    'count': 0,
+                    'message': 'No similar items found. The uploaded image appears to be outside the fashion domain or too dissimilar to existing items.',
+                    'threshold_applied': True
+                }), 200
             
             # If entity not found, try extracting from uploaded filename
             if not query_entity and file and file.filename:
@@ -292,10 +316,23 @@ def similarity_search():
             
             print(f"Processing text query: {text_query}")
             
-            # Perform similarity search
-            search_result = rec_service.similarity_search(text_query, input_type='text', top_k=top_k)
+            # Perform similarity search with threshold
+            search_result = rec_service.similarity_search(
+                text_query, input_type='text', top_k=top_k,
+                min_threshold=min_threshold, adaptive_ratio=adaptive_ratio
+            )
             results = search_result['results']
             query_entity = search_result.get('query_entity')
+            
+            # If no results due to threshold, return informative message
+            if not results:
+                return jsonify({
+                    'results': [],
+                    'query_entity': None,
+                    'count': 0,
+                    'message': f'No similar items found for "{text_query}". Try searching for fashion items like shirts, jeans, shoes, etc.',
+                    'threshold_applied': True
+                }), 200
             
             # If still no entity, extract from first result's label
             if not query_entity and results and len(results) > 0:
@@ -316,7 +353,8 @@ def similarity_search():
         return jsonify({
             'results': results,
             'query_entity': query_entity,
-            'count': len(results)
+            'count': len(results),
+            'threshold_applied': False
         }), 200
         
     except Exception as e:
