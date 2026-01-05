@@ -2,6 +2,9 @@
 
 VisionRec is an intelligent image similarity search and recommendation system that combines CLIP-based visual understanding with knowledge graph-based recommendations. The system uses OpenVINO-optimized CLIP models for efficient image embeddings and FAISS for vector similarity search. For testing purposes, this implementation uses a fashion dataset to demonstrate the capabilities of visual search and intelligent recommendations.
 
+## Demo Video
+--> Click here to watch [Demo Video](https://drive.google.com/file/d/16EaaQKTD9x3JQqT1uEvVfWsmycUsLnL8/view?usp=sharing)
+
 ## Features
 
 - **Dual Search Modes**: Upload images or use text queries to find similar content
