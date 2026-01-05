@@ -1,6 +1,6 @@
-# RecTrio - AI-Powered Fashion Recommendation System
+# VisionRec - Image Similarity Search and Recommendation System
 
-RecTrio is an intelligent fashion recommendation system that combines similarity search with knowledge graph-based recommendations and Out-of-Distribution (OOD) detection. The system uses OpenVINO-optimized CLIP models for image understanding and FAISS for efficient vector search, providing both visually similar images and semantically related recommendations while filtering out non-fashion items.
+VisionRec is an intelligent image similarity search and recommendation system that combines CLIP-based visual understanding with knowledge graph-based recommendations. The system uses OpenVINO-optimized CLIP models for efficient image embeddings and FAISS for vector similarity search. For testing purposes, this implementation uses a fashion dataset to demonstrate the capabilities of visual search and intelligent recommendations.
 
 ## Features
 
@@ -23,47 +23,10 @@ RecTrio is an intelligent fashion recommendation system that combines similarity
 - **Models**: Pre-trained CLIP models converted to OpenVINO IR format
 - **OOD Detection**: CLIP text-image alignment with 17 fashion + 17 non-fashion terms, 5% margin
 
-## Recent Updates & Improvements
-
-### Dataset Pruning (December 2024)
-- **Original Dataset**: 128 categories with mixed quality
-- **Pruned Dataset**: 29 high-quality fashion categories aligned with knowledge graph
-- **Total Images**: 32,356 fashion product images
-- **Backup**: Original 99 non-fashion categories backed up for reference
-- **Categories Retained**: Shirts, Tshirts, Casual Shoes, Watches, Sports Shoes, Kurtas, Tops, Handbags, Heels, Sunglasses, Wallets, Flip Flops, Belts, Sandals, Shoe Accessories, Backpacks, Jeans, Jewellery Set, Flats, Shorts, Trousers, Kurtis, Formal Shoes, Dresses, Watches, Socks, Caps, Clutches, Mufflers
-
-### Out-of-Distribution (OOD) Handling
-The system now includes semantic domain filtering to prevent non-fashion items from being matched:
-
-**How It Works:**
-1. **Text Embedding Cache**: Pre-computes CLIP embeddings for 17 fashion terms (shirts, dresses, shoes, etc.) and 17 non-fashion terms (bicycle, tools, electronics, etc.)
-2. **Semantic Comparison**: Compares query image embedding with fashion vs. non-fashion text embeddings
-3. **Margin-Based Decision**: Uses 5% margin to classify (fashion_score * 1.05 < non_fashion_score → reject)
-4. **Result**: Non-fashion items like bicycle pumps, tools, or electronics are rejected before similarity search
-
-**Benefits:**
-- Prevents false positives from visually similar patterns (e.g., bicycle pump vs. tie)
-- Maintains high precision for fashion queries
-- Graceful error messages when non-fashion items are uploaded
-- No performance impact (embeddings cached on first use)
-
-### Recommendation System Enhancements
-- **Smart Fallback**: Tries last 3 searches from localStorage, shows first successful recommendations
-- **Hide When Empty**: Recommendations section only appears when relevant suggestions exist
-- **Relationship Strength Display**: Shows actual knowledge graph relationship strength (0.0-1.0)
-- **Confidence Indicators**: Color-coded bars (Excellent: 85%+, High: 70%+, Medium: 50%+, Low: 30%+, Very Low: <30%)
-- **No Percentages**: Clean UI with quality labels only (no cluttering percentage numbers)
-
-### UI/UX Improvements
-- **No Results Message**: Friendly explanation when queries fail domain filtering
-- **Auto-Recommendations**: Automatically loads recommendations after similarity search
-- **Search History**: Stores last 3 searches in localStorage for smart recommendations
-- **Responsive Design**: Mobile-optimized confidence indicators and result cards
-
 ## Project Structure
 
 ```
-RecTrio/
+VisionRec/
 ├── app.py                          # Main Flask application
 ├── models.py                       # Database models (User, SearchHistory)
 ├── requirements.txt                # Python dependencies
@@ -116,7 +79,7 @@ cd RecTrio
 
 Download the Fashion Product Images (Small) dataset from Kaggle:
 
-**Dataset URL**: https://www.kaggle.com/datasets/paramaggarwal/fashion-product-images-small
+**Dataset URL**: [Fashion-Product-images-Small](https://www.kaggle.com/datasets/paramaggarwal/fashion-product-images-small)
 
 1. Visit the Kaggle link above
 2. Click "Download" (requires Kaggle account)
@@ -130,6 +93,7 @@ Download the Fashion Product Images (Small) dataset from Kaggle:
 **IMPORTANT**: Before building embeddings, you must run the dataset preparation notebook.
 
 1. Copy the downloaded files to the `datasets/` directory:
+
    ```
    RecTrio/datasets/
    ├── images/          # From Kaggle download
@@ -137,15 +101,17 @@ Download the Fashion Product Images (Small) dataset from Kaggle:
    ```
 
 2. Open and run `datasets/main.ipynb`:
+
    ```bash
    # If using Jupyter Notebook
    cd datasets
    jupyter notebook main.ipynb
-   
+
    # If using VS Code, open main.ipynb and run all cells
    ```
 
 3. The notebook will:
+
    - Read `styles.csv` metadata
    - Filter to 29 fashion categories based on knowledge graph
    - Organize images into category folders: `datasets/fashion/<category>/`
@@ -168,18 +134,21 @@ Download the Fashion Product Images (Small) dataset from Kaggle:
 ### Step 4: Create and Activate Virtual Environment
 
 **Windows (PowerShell):**
+
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
 
 **Windows (Command Prompt):**
+
 ```cmd
 python -m venv venv
 venv\Scripts\activate.bat
 ```
 
 **Linux/Mac:**
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
@@ -192,6 +161,7 @@ pip install -r requirements.txt
 ```
 
 This will install:
+
 - Flask 3.0.0
 - OpenVINO 2024.6.0
 - FAISS 1.13.2
@@ -210,13 +180,14 @@ cd V1/notebooks
 **Important:** Open and run the notebooks in Jupyter or VS Code in the following order:
 
 1. **build_embeddings.ipynb**
+
    - Loads OpenVINO CLIP model
    - Processes 32,356 images from 29 fashion categories
    - Generates L2-normalized embeddings (512-dimensional)
    - Builds FAISS IndexFlatIP for cosine similarity
    - Creates metadata files
    - **Time**: ~15-30 minutes depending on CPU (Intel i5/i7 recommended)
-   - **Output**: 
+   - **Output**:
      - `V1/vector_db/embeddings.npy` (~160 MB)
      - `V1/vector_db/faiss_index.bin`
      - `V1/vector_db/metadata.pkl`
@@ -229,6 +200,7 @@ cd V1/notebooks
    - Verifies recommendation system
 
 Return to project root after completion:
+
 ```bash
 cd ../..
 ```
@@ -250,6 +222,7 @@ SUPABASE_DB_URL=postgresql://user:password@host:port/database
 ```
 
 To generate a secure JWT secret key:
+
 ```python
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
@@ -265,20 +238,6 @@ python app.py
 ```
 
 The application will start on `http://localhost:5000` by default.
-
-## Quick Start Checklist
-
-- [ ] Clone repository
-- [ ] Download Fashion Product Images dataset from Kaggle
-- [ ] Extract dataset to `datasets/` (images folder + styles.csv)
-- [ ] Run `datasets/main.ipynb` to organize images into 29 categories
-- [ ] Create virtual environment and activate
-- [ ] Install dependencies (`pip install -r requirements.txt`)
-- [ ] Run `V1/notebooks/build_embeddings.ipynb` to build vector database
-- [ ] Run `V1/notebooks/inference.ipynb` to test system
-- [ ] Create `.env` file with database credentials
-- [ ] Run `python app.py` to start server
-- [ ] Navigate to `http://localhost:5000` and create account
 
 ## Using the Application
 
@@ -301,17 +260,20 @@ The application will start on `http://localhost:5000` by default.
 
 The system intelligently filters non-fashion items:
 
-**✅ Accepted Fashion Items:**
+**Accepted Fashion Items:**
+
 - Clothing: Shirts, T-shirts, Dresses, Jeans, Shorts, Kurtas, Kurtis
 - Footwear: Shoes, Heels, Sandals, Flip Flops, Flats
 - Accessories: Watches, Sunglasses, Handbags, Wallets, Belts, Jewelry, Caps
 
-**❌ Rejected Non-Fashion Items:**
+**Rejected Non-Fashion Items:**
+
 - Tools, Electronics, Vehicles, Sports Equipment
 - Animals, Nature, Food
 - Office Supplies, Furniture, Appliances
 
 **When Non-Fashion Item is Uploaded:**
+
 - Shows friendly error message: "No similar images found in the database"
 - Explains the item is outside the fashion domain
 - Automatically attempts to load recommendations from search history
@@ -320,10 +282,13 @@ The system intelligently filters non-fashion items:
 ### Search Flow
 
 1. User uploads image or enters text query
-2. **Domain Check**: System validates if query is fashion-related (OOD detection)
-3. **If Fashion**: Shows similar images + auto-loads recommendations
-4. **If Non-Fashion**: Shows error message + tries recommendations from history
-5. **Recommendations Logic**: 
+2. **Domain Check (OOD Detection)**: System compares query against fashion and non-fashion embeddings
+   - Calculates average similarity with 17 fashion terms (fashion_score)
+   - Calculates average similarity with 17 non-fashion terms (non_fashion_score)
+   - Applies threshold: if fashion_score \* 1.05 < non_fashion_score, query is rejected
+3. **If Threshold Passed (Fashion Item)**: Proceeds to similarity search and shows similar images + auto-loads recommendations
+4. **If Threshold Failed (Non-Fashion Item)**: Rejects query, shows error message + tries recommendations from history
+5. **Recommendations Logic**:
    - Tries last search entity from localStorage
    - If no recommendations, tries second-to-last search
    - If still none, tries third-to-last search
@@ -375,6 +340,7 @@ datasets/fashion/
 ```
 
 The `datasets/main.ipynb` notebook automatically:
+
 - Filters the original 44,441 images to 32,356 fashion items
 - Organizes by category based on `styles.csv` metadata
 - Creates folder structure for embedding generation
@@ -385,32 +351,33 @@ The `datasets/main.ipynb` notebook automatically:
 The fashion knowledge graph defines semantic relationships between 30 fashion entities. The graph is located at `V1/vector_db/fashion_knowledge_graph.json`:
 
 **Example Structure:**
+
 ```json
 {
   "entities": {
     "Handbags": {
       "related_entities": {
-        "Heels": 0.90,
+        "Heels": 0.9,
         "Dresses": 0.85,
-        "Tops": 0.80,
+        "Tops": 0.8,
         "Sunglasses": 0.75,
-        "Wallets": 0.70
+        "Wallets": 0.7
       }
     },
     "Heels": {
       "related_entities": {
         "Dresses": 0.95,
-        "Handbags": 0.90,
+        "Handbags": 0.9,
         "Clutches": 0.85,
-        "Jewellery Set": 0.80
+        "Jewellery Set": 0.8
       }
     },
     "Tshirts": {
       "related_entities": {
         "Jeans": 0.95,
-        "Shorts": 0.90,
+        "Shorts": 0.9,
         "Casual Shoes": 0.85,
-        "Caps": 0.80,
+        "Caps": 0.8,
         "Backpacks": 0.75
       }
     }
@@ -419,6 +386,7 @@ The fashion knowledge graph defines semantic relationships between 30 fashion en
 ```
 
 **Relationship Strength Scale:**
+
 - **0.90-1.00**: Very Strong (e.g., Heels + Dresses, Jeans + T-shirts)
 - **0.75-0.89**: Strong (e.g., Handbags + Heels, Shirts + Trousers)
 - **0.60-0.74**: Moderate (e.g., Watches + Casual Shoes)
@@ -429,6 +397,7 @@ The fashion knowledge graph defines semantic relationships between 30 fashion en
 Shirts, Tshirts, Casual Shoes, Watches, Sports Shoes, Kurtas, Tops, Handbags, Heels, Sunglasses, Wallets, Flip Flops, Belts, Sandals, Shoe Accessories, Backpacks, Jeans, Jewellery Set, Flats, Shorts, Trousers, Kurtis, Formal Shoes, Dresses, Socks, Caps, Clutches, Mufflers, Innerwear, Track Pants
 
 **How It's Used:**
+
 1. User searches for "Handbags"
 2. System finds similar handbag images
 3. System loads recommendations from related entities (Heels: 0.90, Dresses: 0.85)
@@ -437,79 +406,21 @@ Shirts, Tshirts, Casual Shoes, Watches, Sports Shoes, Kurtas, Tops, Handbags, He
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/auth/signup` - Create new user account
 - `POST /api/auth/login` - Login and receive JWT token
 - `GET /api/auth/me` - Get current user information
 
 ### Search
+
 - `POST /api/similarity-search` - Find similar images (image or text input)
 - `POST /api/recommendations` - Get KG-based recommendations
 - `GET /api/auto-recommendations` - Automatic recommendations from history
 
 ### Utility
+
 - `GET /api/history` - Get user's recent searches
 - `GET /api/knowledge-graph` - Get KG data for visualization
-
-## Troubleshooting
-
-### Dataset Setup Issues
-- **Problem**: `datasets/main.ipynb` fails to run
-  - **Solution**: Ensure `styles.csv` and `images/` folder exist in `datasets/`
-  - Download from: https://www.kaggle.com/datasets/paramaggarwal/fashion-product-images-small
-  
-- **Problem**: Only a few images organized
-  - **Solution**: Check that `styles.csv` matches image filenames
-  - Verify 29 category folders created in `datasets/fashion/`
-
-### Database Connection Issues
-- Verify Supabase credentials in `.env`
-- Check database URL format: `postgresql://user:password@host:port/database`
-- Ensure database is accessible from your network
-
-### Model Loading Errors
-- Ensure notebooks were run successfully in order:
-  1. `datasets/main.ipynb` (organize dataset)
-  2. `V1/notebooks/build_embeddings.ipynb` (build vector DB)
-  3. `V1/notebooks/inference.ipynb` (test system)
-- Check that model files exist in `V1/models/` (.xml and .bin files)
-- Verify OpenVINO installation: `pip show openvino`
-
-### Empty Results or "No similar images found"
-- **If uploading non-fashion items**: This is expected behavior! OOD detection rejects items outside fashion domain
-- **If uploading fashion items**:
-  - Confirm FAISS index exists: `V1/vector_db/faiss_index.bin`
-  - Check embeddings file: `V1/vector_db/embeddings.npy` (~160 MB)
-  - Check metadata file: `V1/vector_db/metadata.pkl`
-  - Verify 32,356 embeddings: `python check_vector_db.py`
-  - Re-run `build_embeddings.ipynb` if files are missing or corrupted
-
-### Out-of-Distribution (OOD) Detection Issues
-- **Problem**: Fashion items being rejected
-  - **Solution**: Check domain filtering margin (default 5% in `recommendation_service.py`)
-  - Test with `test_domain_filtering.py` to verify behavior
-  - Lower margin for stricter filtering, raise for more lenient
-  
-- **Problem**: Non-fashion items passing through
-  - **Solution**: Add more non-fashion terms to the term lists in `is_fashion_related()`
-  - Rebuild domain embeddings cache by restarting application
-
-### No Recommendations Showing
-- **Expected**: System tries last 3 searches in localStorage
-- **If empty**: Upload and search for fashion items first to build search history
-- **Clear history**: Open browser console, run `localStorage.clear()`
-- **Check knowledge graph**: Ensure `fashion_knowledge_graph.json` has relationships defined
-
-### JWT Authentication Errors
-- Clear browser localStorage: Open console, run `localStorage.clear()`
-- Generate new JWT secret key: `python -c "import secrets; print(secrets.token_hex(32))"`
-- Update `.env` file with new key
-- Restart Flask application
-
-### Performance Issues
-- Reduce number of results (5 instead of 20)
-- First search takes longer (loading models and building OOD cache)
-- Subsequent searches use cached embeddings for faster inference
-- For datasets over 100k images, consider FAISS IVF index
 
 ## Development
 
@@ -533,6 +444,7 @@ Shirts, Tshirts, Casual Shoes, Watches, Sports Shoes, Kurtas, Tops, Handbags, He
 Edit `services/recommendation_service.py`:
 
 **Add Fashion Terms:**
+
 ```python
 fashion_terms = [
     "fashion", "clothing", "apparel", "shoes", ...,
@@ -541,6 +453,7 @@ fashion_terms = [
 ```
 
 **Adjust Margin:**
+
 ```python
 def is_fashion_related(self, query_embedding, margin=1.05):  # Change margin here
     # 1.05 = 5% margin (default)
@@ -553,6 +466,7 @@ def is_fashion_related(self, query_embedding, margin=1.05):  # Change margin her
 Edit `services/recommendation_service.py`:
 
 **Modify Strength Thresholds:**
+
 ```python
 # In get_recommendations_by_entity method
 if strength >= 0.7:
@@ -564,6 +478,7 @@ else:
 ```
 
 **Adjust Mixing Ratios:**
+
 ```python
 # In get_recommendations_by_entity method
 strong_count = min(len(strong_recommendations), max(1, int(top_k * 0.6)))  # 60% strong
@@ -572,17 +487,19 @@ weak_count = max(0, top_k - strong_count - moderate_count)  # Rest weak
 ```
 
 **Change Similarity Thresholds:**
+
 ```python
 # In search_similar_images method
-def search_similar_images(self, query_embedding, top_k=10, 
+def search_similar_images(self, query_embedding, top_k=10,
                          min_threshold=0.25,  # Minimum similarity (adjust here)
-                         adaptive=True, 
+                         adaptive=True,
                          adaptive_ratio=0.70):  # Adaptive threshold (adjust here)
 ```
 
 ## Technical Details
 
 ### CLIP Model Architecture
+
 - **Model**: OpenAI CLIP ViT-B/32
 - **Embedding Dimension**: 512
 - **Optimization**: OpenVINO IR format for CPU inference
@@ -590,24 +507,14 @@ def search_similar_images(self, query_embedding, top_k=10,
 - **Preprocessing**: 224x224 resize, RGB normalization
 
 ### FAISS Index Configuration
+
 - **Index Type**: IndexFlatIP (Inner Product for cosine similarity)
 - **Metric**: Cosine similarity via L2-normalized vectors
 - **Size**: 32,356 vectors × 512 dimensions = ~160 MB
 - **Search**: Exact nearest neighbor (no approximation)
 
-### OOD Detection Algorithm
-1. **Input**: Query image embedding (512-dim)
-2. **Fashion Terms**: ["fashion", "clothing", "apparel", "shoes", "dress", "shirt", "pants", "jacket", "accessories", "handbag", "watch", "jewelry", "footwear", "bag", "garment", "outfit", "style"]
-3. **Non-Fashion Terms**: ["bicycle", "pump", "tool", "electronics", "furniture", "food", "animal", "vehicle", "sports equipment", "office supplies", "kitchen appliance", "toy", "instrument", "plant", "nature", "building", "device"]
-4. **Process**:
-   - Encode all terms using CLIP text encoder (cached)
-   - Compute cosine similarity: query_embedding @ text_embeddings.T
-   - Average fashion term scores → `fashion_score`
-   - Average non-fashion term scores → `non_fashion_score`
-5. **Decision**: `fashion_score * margin >= non_fashion_score` → Accept, else Reject
-6. **Margin**: 1.05 (5% tolerance for borderline cases)
-
 ### Recommendation Algorithm
+
 1. **Input**: Query entity (e.g., "Handbags")
 2. **Knowledge Graph Lookup**: Get related entities with strengths
 3. **Categorization**:
@@ -619,60 +526,6 @@ def search_similar_images(self, query_embedding, top_k=10,
 6. **Weighting**: `final_similarity = similarity × relationship_strength`
 7. **Display**: Show relationship strength in UI confidence indicators
 
-## Security Notes
-
-- Never commit `.env` file to version control
-- Use strong JWT secret keys (64+ characters hex)
-- Enable HTTPS in production environments
-- Regularly update dependencies for security patches
-- Sanitize user uploads (check file types, size limits)
-- Use parameterized SQL queries (SQLAlchemy prevents SQL injection)
-
-## Performance Optimization
-
-### For Large Datasets (100k+ images)
-- Use FAISS IVF index instead of IndexFlatIP
-- Enable GPU acceleration if available
-- Implement batch processing for embeddings
-
-### For Production Deployment
-- Enable OpenVINO threading: `core.set_property({"CPU_THREADS_NUM": "4"})`
-- Use Gunicorn with multiple workers: `gunicorn -w 4 -b 0.0.0.0:5000 app:app`
-- Implement Redis for:
-  - Search history caching
-  - Session management
-  - OOD embeddings cache
-- Add CDN for static assets
-- Enable response compression (gzip)
-
-### Memory Optimization
-- Lazy load models (load on first request)
-- Use embedding quantization (8-bit instead of 32-bit)
-- Implement LRU cache for frequent queries
-- Periodic cleanup of uploads folder
-
-## Dataset Information
-
-**Source**: Fashion Product Images (Small) - Kaggle
-- **URL**: https://www.kaggle.com/datasets/paramaggarwal/fashion-product-images-small
-- **Original Size**: 44,441 images, 143 categories
-- **Curated Subset**: 32,356 images, 29 categories
-- **Image Format**: JPG, variable sizes (resized to 224x224 for CLIP)
-- **Metadata**: CSV with product info (id, gender, category, subcategory, color, season, usage)
-
-**License**: CC0 Public Domain (check Kaggle for latest terms)
-
-## License
-
-This project is for educational and research purposes. Please cite this repository if used in academic work.
-
-## Support
-
-For issues, questions, or contributions:
-- Open an issue on the GitHub repository
-- Check existing documentation in `/docs` folder
-- Review troubleshooting section above
-
 ## Acknowledgments
 
 - **OpenVINO Toolkit** by Intel for optimized CPU inference
@@ -682,21 +535,3 @@ For issues, questions, or contributions:
 - **Kaggle** and dataset contributors for fashion product images
 - **Flask** community for web framework
 - **D3.js** for interactive knowledge graph visualization
-
-## Citation
-
-If you use RecTrio in your research or project, please cite:
-
-```bibtex
-@software{rectrio2024,
-  author = {Sanjay Nithin},
-  title = {RecTrio: AI-Powered Fashion Recommendation System with OOD Detection},
-  year = {2024},
-  url = {https://github.com/Sanjay-nithin/RecTrio},
-  note = {Fashion recommendation system using CLIP, FAISS, and Knowledge Graphs}
-}
-```
-
----
-
-**RecTrio** - Intelligent fashion recommendations powered by AI 🛍️👗👠
